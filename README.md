@@ -36,7 +36,7 @@ npm run package:desktop -- linux x64
 npm run package:desktop -- linux arm64
 ```
 
-Android 使用 JDK 17、Android SDK Platform 36 和 Build Tools 36.0.0。设置 `ANDROID_HOME` 或在 `android/local.properties` 指定 SDK 路径，构建共享界面后运行：
+Android 使用 JDK 17、Android SDK Platform 37 和 Build Tools 36.0.0。设置 `ANDROID_HOME` 或在 `android/local.properties` 指定 SDK 路径，构建共享界面后运行：
 
 ```sh
 ./android/gradlew -p android :app:assembleDebug

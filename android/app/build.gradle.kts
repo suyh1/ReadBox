@@ -2,8 +2,7 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 plugins {
-    id("com.android.application") version "8.13.2"
-    id("org.jetbrains.kotlin.android") version "2.2.21"
+    id("com.android.application") version "9.2.1"
 }
 
 val projectInfo = JsonSlurper().parse(rootProject.file("../package.json")) as Map<*, *>
@@ -14,7 +13,7 @@ val keyPath = providers.environmentVariable("READBOX_KEYSTORE").orNull
 
 android {
     namespace = "io.github.suyh1.readbox"
-    compileSdk = 36
+    compileSdk = 37
     buildToolsVersion = "36.0.0"
     defaultConfig {
         applicationId = "io.github.suyh1.readbox"
@@ -41,7 +40,6 @@ android {
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/readboxAssets"))
 }
 
-kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 // A built-in extension gives the offline UI a stable origin for its modules and CSS.
 val webDist = rootProject.file("../dist")
