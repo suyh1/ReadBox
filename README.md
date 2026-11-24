@@ -46,7 +46,7 @@ Windows 可用 `android\gradlew.bat -p android :app:assembleDebug`。SDK、Gradl
 
 ## 发布
 
-GitHub Actions 对分支推送与 PR 执行构建，验证 Windows 安装和 Linux 两种架构的启动，检查 APK 签名并在断网模拟器上打开本地界面。发布标签形如 `v0.1.0`。标签必须与 `package.json` 中的版本一致，Gradle 从同一文件生成 Android 版本号。每个版本的中文条目来自 `notes/<版本>/*.json`，支持「新增」「改进」「修复」「兼容性」。本地运行 `npm run notes` 预览。
+GitHub Actions 对 main 分支推送与 PR 执行构建，验证 Windows 安装和 Linux 两种架构的启动，检查 APK 签名并在断网模拟器上打开本地界面。发布标签形如 `v0.1.0`。标签必须与 `package.json` 中的版本一致，Gradle 从同一文件生成 Android 版本号。每个版本的中文条目来自 `notes/<版本>/*.json`，支持「新增」「改进」「修复」「兼容性」。本地运行 `npm run notes` 预览。
 
 正式发布前，仓库维护者将固定 Android 签名资料放入 Actions Secrets。覆盖升级需要沿用同一密钥和应用 ID。
 
