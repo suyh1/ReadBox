@@ -37,28 +37,37 @@ android {
         buildTypes.getByName("release").signingConfig = signingConfigs.getByName("distribution")
     }
     buildTypes.getByName("debug") { applicationIdSuffix = ".debug" }
-    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/readboxAssets"))
 }
 
 
-// A built-in extension gives the offline UI a stable origin for its modules and CSS.
-val webDist = rootProject.file("../dist")
-val bundleWeb by tasks.registering(Sync::class) {
-    inputs.property("version", readboxVersion)
-    from(webDist)
-    val extensionDir = layout.buildDirectory.dir("generated/readboxAssets/ui")
-    into(extensionDir)
-    doFirst { check(webDist.resolve("index.html").isFile) { "请先在仓库根目录运行 npm run build" } }
-    doLast {
-        extensionDir.get().file("manifest.json").asFile.writeText(JsonOutput.toJson(mapOf(
-            "manifest_version" to 2, "name" to "ReadBox", "version" to readboxVersion,
+// GeckoView loads this built-in extension from the APK without a web server.
+abstract class BundleReadBoxUi : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val webDist: DirectoryProperty
+    @get:Input abstract val appVersion: Property<String>
+    @get:OutputDirectory abstract val assets: DirectoryProperty
+    @get:Inject abstract val files: FileSystemOperations
+
+    @TaskAction
+    fun bundle() {
+        val source = webDist.get().asFile
+        check(source.resolve("index.html").isFile) { "请先在仓库根目录运行 npm run build" }
+        val extensionDir = assets.get().dir("ui").asFile
+        files.sync { from(source); into(extensionDir) }
+        extensionDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf(
+            "manifest_version" to 2, "name" to "ReadBox", "version" to appVersion.get(),
             "browser_specific_settings" to mapOf("gecko" to mapOf("id" to "ui@readbox.local"))
         )))
     }
 }
-tasks.named("preBuild") {
-    dependsOn(bundleWeb)
-    doLast { check(webDist.resolve("index.html").isFile) { "缺少 dist/index.html，请运行 npm run build" } }
+
+androidComponents.onVariants { variant ->
+    val bundle = tasks.register<BundleReadBoxUi>("bundle" + variant.name.replaceFirstChar { it.uppercase() } + "Web") {
+        webDist.set(rootProject.layout.projectDirectory.dir("../dist"))
+        appVersion.set(readboxVersion)
+    }
+    variant.sources.assets?.addGeneratedSourceDirectory(bundle, BundleReadBoxUi::assets)
 }
 
 dependencies {
