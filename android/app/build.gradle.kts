@@ -1,8 +1,12 @@
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
+buildscript {
+    dependencies { classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20") }
+}
+
 plugins {
-    id("com.android.application") version "9.2.1"
+    id("com.android.application") version "9.4.0"
 }
 
 val projectInfo = JsonSlurper().parse(rootProject.file("../package.json")) as Map<*, *>
@@ -13,7 +17,7 @@ val keyPath = providers.environmentVariable("READBOX_KEYSTORE").orNull
 
 android {
     namespace = "io.github.suyh1.readbox"
-    compileSdk = 37
+    compileSdk { version = release(37) { minorApiLevel = 1 } }
     buildToolsVersion = "36.0.0"
     defaultConfig {
         applicationId = "io.github.suyh1.readbox"
