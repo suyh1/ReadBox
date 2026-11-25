@@ -483,6 +483,14 @@ dialog button + button {
   height: 100%;
   padding: 8px 0;
 }
+.reading-area.spread::after {
+  content: '';
+  position: absolute;
+  inset: 1.5rem auto 1.5rem 50%;
+  width: 1px;
+  background: color-mix(in srgb, var(--print) 12%, transparent);
+  pointer-events: none;
+}
 .viewport {
   height: 100%;
   width: 100%;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { _electron as electron } from 'playwright-core'
@@ -84,6 +85,56 @@ try {
         return rect.width > 0 && rect.left >= 0 && rect.right <= window.innerWidth
       })
     })
+  })
+  await launch([], async (page) => {
+    const button = name => page.getByRole('button', { name, exact: true })
+    async function chooseFlow(value) {
+      await button('阅读设置').click()
+      await page.getByLabel('阅读方式').selectOption(value)
+      await button('关闭面板').click()
+    }
+    async function expectPages(numbers) {
+      // Check the visible text in each half, including the iframe's scroll offset.
+      await page.waitForFunction(expected => {
+        const frame = document.querySelector('iframe')
+        if (!frame?.contentDocument?.body) return false
+        const view = document.querySelector('.viewport').getBoundingClientRect()
+        const offset = frame.getBoundingClientRect().left
+        const visible = Array.from(frame.contentDocument.querySelectorAll('p')).flatMap(p => {
+          const range = frame.contentDocument.createRange()
+          range.selectNodeContents(p)
+          const x = offset + range.getBoundingClientRect().left - view.left
+          return x >= 0 && x < view.width ? [{ text: p.textContent, x }] : []
+        })
+        return visible.length === expected.length && visible.every(({ text, x }, i) =>
+          text === '第 ' + expected[i] + ' 页' && (expected.length === 1 || Math.floor(x * 2 / view.width) === i))
+      }, numbers)
+      const range = numbers.join('–')
+      await page.waitForFunction(prefix => document.querySelector('.page-info small')?.textContent.trim().startsWith(prefix), range + ' / 8')
+    }
+
+    await button('关闭').click()
+    await page.setViewportSize({ width: 1000, height: 680 })
+    await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/spreads.epub', import.meta.url)))
+    await expectPages([1])
+    await chooseFlow('two-page')
+    await expectPages([1, 2])
+    await button('下一页').click()
+    await expectPages([3, 4])
+    await page.keyboard.press('ArrowLeft')
+    await expectPages([1, 2])
+    await page.keyboard.press('PageDown')
+    await expectPages([3, 4])
+    await button('书架').click()
+    await page.reload()
+    await button('接着读').click()
+    await expectPages([3, 4])
+    await page.setViewportSize({ width: 720, height: 680 })
+    await expectPages([3])
+    await page.setViewportSize({ width: 1000, height: 680 })
+    await expectPages([3, 4])
+    await chooseFlow('paginated')
+    await expectPages([3])
   })
   console.log('桌面启动、显示设置、EPUB 阅读、批注与续读检查通过')
 } finally {

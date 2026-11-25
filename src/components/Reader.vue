@@ -39,13 +39,14 @@ const error = ref('')
 const status = ref('')
 const focus = ref(false)
 const location = ref<Location>()
+const spreadVisible = ref(false)
 const chapter = ref('')
 const percent = ref(0)
 const beforeJump = ref('')
 let foundCfi = ''
 const toc = ref<ReturnType<typeof contentsOf>>([])
 const marks = ref<Mark[]>(props.record.marks.map((m) => ({ ...m })))
-const selection = ref<{ cfi: string; quote: string }>()
+const selection = ref<Pick<Mark, 'cfi' | 'quote' | 'chapter'>>()
 const note = ref('')
 const footnote = ref('')
 const query = ref('')
@@ -62,6 +63,10 @@ let searchRun = 0
 let utterance: SpeechSynthesisUtterance | undefined
 let lastAnchor: Element | null = null
 
+const android = /Android/i.test(navigator.userAgent)
+const desktopPages = !!window.readbox || (!android && !/iPad|iPhone|Mobile/i.test(navigator.userAgent))
+const minSpreadWidth = 800
+
 const defaults = {
   theme: '跟随系统',
   width: '标准',
@@ -72,15 +77,28 @@ const defaults = {
 }
 function readPreferences() {
   try {
-    return {
-      ...defaults,
-      ...JSON.parse(localStorage.getItem('reader-preferences') || '{}'),
-    } as typeof defaults
+    const saved = { ...defaults, ...JSON.parse(localStorage.getItem('reader-preferences') || '{}') }
+    if (!desktopPages && saved.flow === 'two-page') saved.flow = 'paginated'
+    return saved as typeof defaults
   } catch {
     return { ...defaults }
   }
 }
 const prefs = ref(readPreferences())
+const twoPage = computed(() => desktopPages && prefs.value.flow === 'two-page')
+const spread = computed(() => twoPage.value ? 'auto' : 'none')
+const flow = computed(() => prefs.value.flow === 'scrolled-doc' ? 'scrolled-doc' : 'paginated')
+const maxReadingWidth = computed(() => {
+  const pageWidth = prefs.value.width === '窄幅' ? 650 : prefs.value.width === '宽幅' ? 1080 : 850
+  return pageWidth * (twoPage.value ? 2 : 1)
+})
+const visiblePages = computed(() => {
+  const loc = location.value
+  if (!loc) return ''
+  const first = loc.start.displayed.page
+  const last = loc.end.displayed.page
+  return twoPage.value && loc.start.index === loc.end.index && last > first ? first + '–' + last : first
+})
 const palettes: Record<string, string[]> = {
   纸白: ['#fcfbf7', '#242922'],
   暖纸: ['#eee2cb', '#43392b'],
@@ -228,9 +246,10 @@ watch(
     } catch {
       status.value = '排版偏好未能保存。'
     }
-    if (rendition?.settings.flow !== value.flow) rendition?.flow(value.flow)
     if (rendition) {
       const current = location.value?.start.cfi
+      if (rendition.settings.spread !== spread.value) rendition.spread(spread.value, minSpreadWidth)
+      if (rendition.settings.flow !== flow.value) rendition.flow(flow.value)
       for (const c of rendition.getContents() as unknown as Contents[]) applyStyle(c)
       if (current)
         void rendition.display(current).catch(() => {
@@ -238,7 +257,7 @@ watch(
         })
     }
   },
-  { deep: true },
+  { deep: true, flush: 'post' },
 )
 function relocated(loc: Location) {
   if (disposed || !loc.start?.cfi) return
@@ -355,7 +374,7 @@ function bindContent(content: Contents) {
     (e) => {
       const dx = e.changedTouches[0].clientX - touchX
       if (
-        prefs.value.flow === 'paginated' &&
+        flow.value === 'paginated' &&
         !doc.getSelection()?.toString() &&
         Math.abs(dx) > 55 &&
         Math.abs(dx) > Math.abs(e.changedTouches[0].clientY - touchY) * 1.6
@@ -380,7 +399,7 @@ function bindContent(content: Contents) {
       }
       if (doc.getSelection()?.toString() || Date.now() - swipeAt < 400) return
       selection.value = undefined
-      if (window.matchMedia('(pointer: coarse)').matches && prefs.value.flow === 'paginated') {
+      if (window.matchMedia('(pointer: coarse)').matches && flow.value === 'paginated') {
         const x = event.clientX / content.window.innerWidth
         if (x < 0.22 || x > 0.78) {
           turn(x > 0.78)
@@ -399,7 +418,7 @@ function highlight(mark: Mark) {
   })
 }
 function edit(mark: Mark) {
-  selection.value = { cfi: mark.cfi, quote: mark.quote }
+  selection.value = { cfi: mark.cfi, quote: mark.quote, chapter: mark.chapter }
   note.value = mark.note
   showPanel('写笔记')
 }
@@ -441,7 +460,6 @@ function saveHighlight(withNote: boolean) {
   void saveMark({
     kind: 'highlight',
     ...selection.value,
-    chapter: existing?.chapter || chapter.value,
     note: withNote ? note.value : existing?.note || '',
   })
 }
@@ -507,7 +525,6 @@ async function copyNotes() {
     showPanel('导出书摘')
   }
 }
-const android = /Android/i.test(navigator.userAgent)
 onMounted(async () => {
   appearance.addEventListener('change', updateAppearance)
   window.addEventListener('keydown', keys)
@@ -525,12 +542,16 @@ onMounted(async () => {
     rendition = book.renderTo(viewport.value!, {
       width: '100%',
       height: '100%',
-      flow: prefs.value.flow,
-      spread: 'none',
+      flow: flow.value,
+      spread: spread.value,
+      minSpreadWidth,
       allowScriptedContent: false,
       ...(window.location.protocol === 'moz-extension:' ? { view: ExtensionChapterView } : {}),
     })
     rendition.hooks.content.register(bindContent)
+    rendition.on('layout', (layout: { divisor: number }) => {
+      spreadVisible.value = layout.divisor === 2
+    })
     rendition.on('relocated', relocated)
     rendition.on('displayerror', (cause: unknown) => {
       console.warn('无法载入 EPUB 章节', cause)
@@ -540,7 +561,7 @@ onMounted(async () => {
     rendition.on('selected', (cfi: string, contents: Contents) => {
       const quote = contents.window.getSelection()?.toString().trim()
       if (quote) {
-        selection.value = { cfi, quote }
+        selection.value = { cfi, quote, chapter: labelFor(contents.sectionIndex) }
         note.value = ''
         focus.value = false
       }
@@ -584,10 +605,7 @@ onBeforeUnmount(() => {
       <strong>{{ record.title }}</strong>
       <button class="icon" title="专注阅读" aria-label="专注阅读" @click="focus = true"><Maximize /></button>
     </header>
-    <div
-      class="reading-area"
-      :style="{ maxWidth: prefs.width === '窄幅' ? '650px' : prefs.width === '宽幅' ? '1080px' : '850px' }"
-    >
+    <div class="reading-area" :class="{ spread: spreadVisible }" :style="{ maxWidth: maxReadingWidth + 'px' }">
       <div ref="viewport" class="viewport"></div>
       <p v-if="loading" role="status" class="reader-message">正在排版…</p>
     </div>
@@ -622,7 +640,7 @@ onBeforeUnmount(() => {
         <span>
           {{ chapter }}
           <small v-if="location">
-            {{ location.start.displayed.page }} / {{ location.start.displayed.total }} · {{ percent }}%
+            {{ visiblePages }} / {{ location.start.displayed.total }} · {{ percent }}%
           </small>
         </span>
         <button class="icon" aria-label="下一页" :disabled="!location || location.atEnd" @click="turn(true)">
@@ -752,10 +770,12 @@ onBeforeUnmount(() => {
         <label>
           阅读方式
           <select v-model="prefs.flow" aria-label="阅读方式">
-            <option value="paginated">左右分页</option>
+            <option value="paginated">{{ desktopPages ? '单栏分页' : '左右分页' }}</option>
+            <option v-if="desktopPages" value="two-page">双栏分页</option>
             <option value="scrolled-doc">章节内滚动</option>
           </select>
         </label>
+        <small v-if="twoPage && !spreadVisible && location">窗口宽度达到 {{ minSpreadWidth }} 像素时显示双栏。</small>
         <button :disabled="!voices.length" @click="readAloud">
           <Volume2 />
           {{ speak ? '停止朗读' : voices.length ? '从这里朗读本章' : '系统暂无离线语音' }}
