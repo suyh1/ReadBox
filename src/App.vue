@@ -21,6 +21,7 @@ import { importBook } from './reader/epub'
 import sample from './assets/书页之间.epub?inline&url'
 
 const desktop = window.readbox
+const extensionHost = window.location.protocol === 'moz-extension:'
 const books = ref<ShelfBook[]>([])
 const active = ref<ShelfBook>()
 const reader = ref<InstanceType<typeof Reader>>()
@@ -109,6 +110,12 @@ async function startSample() {
   await ingest([new File([bytes], '书页之间.epub')], true)
 }
 function openReader(book: ShelfBook) {
+  if (extensionHost) {
+    const target = new URL(window.location.href)
+    target.searchParams.set('book', book.id)
+    window.location.assign(target.href)
+    return
+  }
   active.value = book
   notice.value = ''
   history.pushState({ book: book.id }, '')
@@ -153,11 +160,25 @@ async function toggleFavorite(book: ShelfBook) {
     notice.value = '收藏保存失败，请重试。'
   }
 }
+async function restorePage() {
+  await refresh()
+  if (extensionHost) {
+    const id = new URL(window.location.href).searchParams.get('book')
+    active.value = books.value.find(book => book.id === id)
+  }
+}
+function pageShown(event: PageTransitionEvent) {
+  if (event.persisted) void restorePage()
+}
 onMounted(() => {
-  void refresh()
+  void restorePage()
+  window.addEventListener('pageshow', pageShown)
   window.addEventListener('popstate', handleBack)
 })
-onUnmounted(() => window.removeEventListener('popstate', handleBack))
+onUnmounted(() => {
+  window.removeEventListener('popstate', handleBack)
+  window.removeEventListener('pageshow', pageShown)
+})
 </script>
 
 <template>

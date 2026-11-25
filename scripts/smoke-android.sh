@@ -42,6 +42,16 @@ PY
     sleep 1
   done
   adb exec-out screencap -p > out/android-reader-failure.png
+  # A compact preview in the text log complements the full diagnostic artifact.
+  python3 - <<'PREVIEW'
+from PIL import Image
+import base64, io
+image = Image.open("out/android-reader-failure.png").convert("RGB")
+image.thumbnail((320, 640))
+data = io.BytesIO()
+image.save(data, "JPEG", quality=55)
+print("READBOX_SCREEN " + base64.b64encode(data.getvalue()).decode("ascii"))
+PREVIEW
   cat "$tree" >&2
   rm -f "$tree"
   adb logcat -d -s ReadBox AndroidRuntime GeckoConsole >&2
@@ -73,6 +83,8 @@ else:
 read -r x y <<< "$coords"
 echo "点击书签工具 ($x, $y)"
 adb shell input tap "$x" "$y"
+# Wait for the touch handler and the IndexedDB transaction before issuing Back.
+adb shell uiautomator dump /sdcard/readbox-window.xml >/dev/null
 adb shell input keyevent KEYCODE_BACK
 wait_control '1 条书摘'
 adb shell am force-stop "$app"
