@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
+import { once } from 'node:events'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -7,9 +9,51 @@ import { _electron as electron } from 'playwright-core'
 
 const profile = await mkdtemp(path.join(os.tmpdir(), 'readbox-display-'))
 const executablePath = process.argv[2]
-async function launch(extraArgs, verify) {
+const secondProfile = await mkdtemp(path.join(os.tmpdir(), 'readbox-sync-'))
+const documents = new Map()
+let writes = 0
+let offline = false
+let directoryExists = false
+let conflict = false
+const server = createServer(async (req, res) => {
+  const file = documents.get(req.url)
+  if (offline) res.writeHead(503)
+  else if (req.headers.authorization !== 'Basic ' + Buffer.from('reader:app-password').toString('base64')) res.writeHead(401)
+  else if (req.method === 'MKCOL' && req.url === '/dav/ReadBox/') {
+    res.writeHead(directoryExists ? 405 : 201)
+    directoryExists = true
+  }
+  else if (!/^\/dav\/ReadBox\/[a-f0-9]{64}\.json$/.test(req.url)) res.writeHead(400)
+  else if (req.method === 'GET' && file) { res.writeHead(200, { etag: file.etag }); res.end(file.json); return }
+  else if (req.method === 'GET') res.writeHead(404)
+  else if (req.method === 'PUT') {
+    if (conflict) res.writeHead(412)
+    else if (!directoryExists) res.writeHead(409)
+    else if (file ? req.headers['if-match'] !== file.etag : req.headers['if-none-match'] !== '*') res.writeHead(412)
+    else {
+      let json = ''
+      for await (const chunk of req) json += chunk
+      documents.set(req.url, { json, etag: '"' + ++writes + '"' })
+      res.writeHead(201)
+    }
+  } else res.writeHead(405)
+  res.end()
+})
+server.listen(0, '127.0.0.1')
+await once(server, 'listening')
+async function configure(page, auto) {
+  await page.getByRole('button', { name: '进度同步', exact: true }).click()
+  await page.getByLabel('WebDAV 目录 URL').fill('http://127.0.0.1:' + server.address().port + '/dav/')
+  await page.getByLabel('用户名', { exact: true }).fill('reader')
+  await page.getByLabel('应用密码', { exact: true }).fill('app-password')
+  await page.getByLabel('上传方式').selectOption({ label: auto ? '自动同步' : '手动同步' })
+  await page.getByRole('button', { name: '保存设置' }).click()
+  await page.getByText('同步设置已保存。').waitFor()
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
+}
+async function launch(extraArgs, verify, dataDir = profile) {
   const app = await electron.launch({
-    executablePath, args: ['--user-data-dir=' + profile, ...extraArgs], chromiumSandbox: true,
+    executablePath, args: ['--user-data-dir=' + dataDir, ...extraArgs], chromiumSandbox: true,
     timeout: 30000,
   })
   try {
@@ -18,20 +62,31 @@ async function launch(extraArgs, verify) {
     await page.getByRole("button", { name: "显示设置" }).click()
     const toggle = page.getByRole('checkbox', { name: '启用硬件加速' })
     await toggle.waitFor()
-    await verify(page, toggle)
+    await verify(page, toggle, app)
   } finally {
     await app.close()
   }
 }
 
 try {
-  await launch([], async (page, toggle) => {
+  await launch([], async (page, toggle, app) => {
+    const shortcut = page.getByRole('textbox', { name: '老板键快捷键' })
+    assert.equal(await shortcut.inputValue(), 'F8')
+    assert.ok(await app.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('F8')))
+    await shortcut.press('Control+Alt+J')
+    await page.getByText('老板键已生效。').waitFor()
+    assert.ok(await app.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+J')))
+    await shortcut.press('F9')
+    await page.waitForFunction(() => document.querySelector('.shortcut-input')?.value === 'F9')
+    assert.ok(await app.evaluate(({ globalShortcut }) =>
+      globalShortcut.isRegistered('F9') && !globalShortcut.isRegistered('Control+Alt+J') && !globalShortcut.isRegistered('F8')))
     assert.equal(await toggle.isChecked(), false)
     await page.getByText('当前使用软件合成').waitFor()
     await toggle.check()
     await page.getByText('设置已保存，下次启动时生效。').waitFor()
   })
   await launch(['--disable-gpu'], async (page, toggle) => {
+    assert.equal(await page.getByLabel('老板键快捷键').inputValue(), 'F9')
     assert.equal(await toggle.isChecked(), true)
     await page.getByText('本次启动已强制使用软件绘制。').waitFor()
     await page.getByText('当前使用软件合成').waitFor()
@@ -74,8 +129,10 @@ try {
     await button('接着读').waitFor()
     await page.reload()
     await button('接着读').click()
-    await frame.getByRole('heading', { name: '折角与余白' }).waitFor()
-    await button('已加书签').waitFor()
+    await frame.getByRole('heading', { name: '窗边的一页' }).waitFor()
+    await button('阅读时长').click()
+    await page.waitForFunction(() => document.querySelector('.time-stats dd')?.textContent !== '0 秒')
+    await button('关闭面板').click()
     await page.setViewportSize({ width: 320, height: 640 })
     await page.waitForFunction(() => {
       const tools = document.querySelector('.reader-tools')
@@ -114,6 +171,7 @@ try {
     }
 
     await button('关闭').click()
+    await configure(page, false)
     await page.setViewportSize({ width: 1000, height: 680 })
     await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/spreads.epub', import.meta.url)))
     await expectPages([1])
@@ -142,6 +200,22 @@ try {
     await expectPages([1, 2])
     await page.keyboard.press('PageDown')
     await expectPages([3, 4])
+    await button('上一页').click()
+    await expectPages([1, 2])
+    await button('专注阅读').click()
+    await button('下一页').click()
+    await expectPages([3, 4])
+    await button('退出专注').click()
+    await button('阅读设置').click()
+    await page.getByText('WebDAV 进度同步', { exact: true }).click()
+    assert.equal(writes, 0)
+    await button('立即同步').click()
+    await page.getByText(/已上传 .* 本书的阅读进度/).waitFor()
+    const initialWrites = writes
+    await button('立即同步').click()
+    await page.getByText('阅读进度已是最新。').waitFor()
+    assert.equal(writes, initialWrites)
+    await button('关闭面板').click()
     await button('书架').click()
     await page.reload()
     await button('接着读').click()
@@ -153,7 +227,44 @@ try {
     await chooseFlow('paginated')
     await expectPages([3])
   })
-  console.log('桌面启动、显示设置、EPUB 阅读、批注与续读检查通过')
+  await launch([], async (page) => {
+    const button = name => page.getByRole('button', { name, exact: true })
+    await button('关闭').click()
+    await configure(page, true)
+    await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/spreads.epub', import.meta.url)))
+    const pageNumber = async n => page.waitForFunction(n =>
+      document.querySelector('.page-info small')?.textContent.trim().startsWith(n + ' / 8'), n)
+    await pageNumber(3)
+    const before = writes
+    await button('下一页').click()
+    await pageNumber(4)
+    await button('阅读设置').click()
+    await page.getByText('WebDAV 进度同步', { exact: true }).click()
+    await page.getByText('已上传 1 本书的阅读进度。').waitFor()
+    assert.equal(writes, before + 1)
+    await button('关闭面板').click()
+    offline = true
+    await button('书架').click()
+    await button('接着读').click()
+    await pageNumber(1)
+    await page.getByText(/HTTP 503.*从书首打开/).waitFor()
+    await button('下一页').click()
+    await pageNumber(2)
+    await button('阅读设置').click()
+    await page.getByText('WebDAV 进度同步', { exact: true }).click()
+    offline = false
+    conflict = true
+    await button('立即同步').click()
+    await page.getByText(/另一台设备刚更新了进度/).waitFor()
+    assert.equal(writes, before + 1)
+    conflict = false
+    await button('立即同步').click()
+    await page.getByText('已上传 1 本书的阅读进度。').waitFor()
+    assert.equal(writes, before + 2)
+  }, secondProfile)
+  console.log('老板键、阅读计时、分页、批注、WebDAV 增量同步和跨设备续读检查通过')
 } finally {
+  server.close()
+  await rm(secondProfile, { recursive: true, force: true, maxRetries: 3 })
   await rm(profile, { recursive: true, force: true, maxRetries: 3 })
 }

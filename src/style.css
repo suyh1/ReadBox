@@ -459,3 +459,36 @@ dialog button + button {
   font-size: 0.8rem;
   color: var(--accent);
 }
+
+.page-info .icon {
+  background: var(--panel);
+  border-color: var(--line);
+  border-radius: 50%;
+}
+.focused .page-info .icon {
+  visibility: visible;
+  pointer-events: auto;
+}
+@media (min-width: 920px) {
+  .reading-area { width: calc(100% - 104px); }
+  .page-info .icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .page-info .icon:first-child { left: 6px; }
+  .page-info .icon:last-child { right: 6px; }
+}
+.time-stats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.time-stats dd { margin: 0; font-weight: 600; }
+.sync-settings form label { display: grid; justify-content: stretch; gap: 4px; margin: 12px 0; }
+.sync-settings input, .sync-settings select { width: 100%; }
+.sync-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.sync-actions button { margin: 0; }
+.preferences summary { cursor: pointer; padding: 12px 0; }
+.shortcut-input { flex: 1; }

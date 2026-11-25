@@ -13,7 +13,7 @@
 | [KOReader](https://koreader.rocks/user_guide/) | 保留出版样式并允许覆盖，阅读笔记可带走 | 默认保留书内字体和行距，支持 Markdown 书摘 |
 | [calibre](https://manual.calibre-ebook.com/viewer.html) | 书内检索、书签与位置恢复 | 导入单本直接打开，书房一键续读，跨章搜索后可返回跳转前的位置 |
 
-当前优先级是打开一本书、舒适阅读、留下想法和下次接着读。Readest 的双书对照与云同步、Readwise 的跨库回顾属于后续候选，尚未接入。
+当前优先级是打开一本书、舒适阅读、留下想法和下次接着读。跨设备续读可通过 WebDAV 同步每本书的 CFI。双书对照和跨库回顾属于后续候选。
 
 ## 数据与渲染
 

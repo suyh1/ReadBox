@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import {
   BookOpen,
   LibraryBig,
@@ -11,10 +11,12 @@ import {
   ArrowRight,
   Trash2,
   Settings2,
+  Cloud,
   X,
 } from '@lucide/vue'
 import BookCover from './components/BookCover.vue'
 import DisplaySettings from './components/DisplaySettings.vue'
+import SyncSettings from './components/SyncSettings.vue'
 import Reader from './components/Reader.vue'
 import MarqueeTitle from './components/MarqueeTitle.vue'
 import './library.css'
@@ -36,6 +38,7 @@ const query = ref('')
 const scope = ref('全部图书')
 const order = ref('最近阅读')
 const modal = ref<HTMLDialogElement>()
+const syncSettings = ref(false)
 const deleting = ref<ShelfBook>()
 const featured = computed(
   () => [...books.value].sort((a, b) => b.lastRead - a.lastRead || b.added - a.added)[0],
@@ -144,9 +147,10 @@ function handleBack(event: PopStateEvent) {
     return
   }
   active.value = undefined
-  void refresh()
+  void nextTick(refresh)
 }
-function showDialog(book?: ShelfBook) {
+function showDialog(book?: ShelfBook, sync = false) {
+  syncSettings.value = sync
   deleting.value = book
   modal.value?.showModal()
 }
@@ -209,6 +213,7 @@ onUnmounted(() => {
         <nav aria-label="书房导航">
           <button class="quiet" @click="collection?.scrollIntoView()">书架</button>
         </nav>
+        <button class="icon" aria-label="进度同步" title="进度同步" @click="showDialog(undefined, true)"><Cloud /></button>
         <button v-if="desktop" class="icon" aria-label="显示设置" @click="showDialog()"><Settings2 /></button>
       </div>
     </header>
@@ -324,6 +329,10 @@ onUnmounted(() => {
         <h2>移除《{{ deleting.title }}》？</h2>
         <p>这会一并移除本机的阅读进度、书签和笔记。</p>
         <button class="danger" @click="erase">确认移除</button>
+      </template>
+      <template v-else-if="syncSettings">
+        <h2>进度同步</h2>
+        <SyncSettings />
       </template>
       <DisplaySettings v-else />
       <button @click="modal?.close()">{{ deleting ? '取消' : '关闭' }}</button>

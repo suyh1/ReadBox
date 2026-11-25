@@ -7,6 +7,12 @@ interface RenderSettings {
 
 interface Window {
   readbox?: {
+    onWindowActivity(callback: (active: boolean) => void): () => void
+    shortcut(): Promise<{ key: string; active: boolean }>
+    setShortcut(key: string): Promise<{ key: string; active: boolean }>
+    davSettings(): Promise<import('../desktop/webdav.mjs').DavConfig | null>
+    saveDavSettings(config: import('../desktop/webdav.mjs').DavConfig | null): Promise<void>
+    requestProgress: typeof import('../desktop/webdav.mjs').requestProgress
     rendering(): Promise<RenderSettings>
     setHardwareAcceleration(enabled: boolean): Promise<RenderSettings>
   }

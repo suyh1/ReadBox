@@ -61,6 +61,7 @@ abstract class BundleReadBoxUi : DefaultTask() {
         files.sync { from(source); into(extensionDir) }
         extensionDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf(
             "manifest_version" to 2, "name" to "ReadBox", "version" to appVersion.get(),
+            "permissions" to listOf("https://*/*", "http://*/*"),
             "browser_specific_settings" to mapOf("gecko" to mapOf("id" to "ui@readbox.local"))
         )))
     }

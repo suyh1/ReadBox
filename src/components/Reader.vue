@@ -6,6 +6,7 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   List,
   Search,
   NotebookPen,
@@ -17,6 +18,9 @@ import {
 } from '@lucide/vue'
 import type { Book, Contents, Location, Rendition } from 'epubjs'
 import type Section from 'epubjs/types/section'
+import { openingPosition, scheduleUpload, syncError } from '../reader/sync'
+import { duration, useReadingTime } from '../reader/reading-time'
+import SyncSettings from './SyncSettings.vue'
 import MarqueeTitle from './MarqueeTitle.vue'
 import { ExtensionChapterView } from '../reader/extension-view'
 import {
@@ -39,6 +43,11 @@ const panel = ref('')
 const loading = ref(true)
 const error = ref('')
 const status = ref('')
+const { elapsed, start: startTimer } = useReadingTime(props.record.id, () => {
+  status.value = '阅读时长保存失败，请检查存储空间。'
+})
+let firstLocation = true
+let positionTime = 0
 const focus = ref(false)
 const location = ref<Location>()
 const spreadVisible = ref(false)
@@ -277,6 +286,9 @@ watch(
 function relocated(loc: Location) {
   if (disposed || !loc.start?.cfi) return
   if (location.value?.start.index !== loc.start.index) stopSpeaking()
+  const moved = !firstLocation && location.value?.start.cfi !== loc.start.cfi
+  if (firstLocation) startTimer()
+  firstLocation = false
   location.value = loc
   chapter.value = labelFor(loc.start.index)
   const { page, total } = loc.start.displayed
@@ -285,7 +297,16 @@ function relocated(loc: Location) {
     : Math.min(99, Math.floor((100 * (loc.start.index + (page - 1) / Math.max(total, 1))) / sections.length))
   percent.value = progress
   const patch = { cfi: loc.start.cfi, chapter: chapter.value, progress, lastRead: Date.now() }
-  void updateBook(props.record.id, (b) => Object.assign(b, patch)).catch(() => {
+  void updateBook(props.record.id, b => {
+    Object.assign(b, patch)
+    if (moved) {
+      positionTime = Math.max(Date.now(), positionTime + 1, (b.pendingPosition?.updated || 0) + 1)
+      b.pendingPosition = {
+        id: b.id, cfi: patch.cfi, chapter: patch.chapter, progress,
+        updated: positionTime,
+      }
+    }
+  }).then(() => { if (moved) scheduleUpload() }).catch(() => {
     status.value = '阅读位置保存失败，请检查存储空间。'
   })
 }
@@ -582,9 +603,19 @@ onMounted(async () => {
       }
     })
     marks.value.filter((m) => m.kind === 'highlight').forEach(highlight)
+    let target: string | undefined
     try {
-      await rendition.display(props.record.cfi || undefined)
+      const remote = await openingPosition(props.record.id, props.record.pendingPosition)
+      target = remote?.cfi
+      positionTime = remote?.updated || 0
+    } catch (cause) {
+      status.value = syncError(cause) + ' 已从书首打开。'
+    }
+    if (disposed) return
+    try {
+      await rendition.display(target)
     } catch {
+      status.value = '云端位置无法定位，已从书首打开。'
       await rendition.display()
     }
     if (!disposed) backButton.value?.focus({ preventScroll: true })
@@ -596,6 +627,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   disposed = true
+  scheduleUpload(0)
   searchRun++
   stopSpeaking()
   synth?.removeEventListener('voiceschanged', refreshVoices)
@@ -618,6 +650,7 @@ onBeforeUnmount(() => {
       </button>
       <button v-if="beforeJump" class="quiet return-position" @click="undoJump">返回跳转前</button>
       <MarqueeTitle :text="record.title" />
+      <button class="icon" title="阅读时长" aria-label="阅读时长" @click="showPanel('阅读时长')"><Clock3 /></button>
       <button class="icon" title="专注阅读" aria-label="专注阅读" @click="focus = true"><Maximize /></button>
     </header>
     <div class="reading-area" :class="{ spread: spreadVisible }" :style="{ maxWidth: maxReadingWidth + 'px' }">
@@ -646,6 +679,7 @@ onBeforeUnmount(() => {
       <div class="page-info">
         <button
           class="icon"
+          title="上一页"
           aria-label="上一页"
           :disabled="!location || location.atStart"
           @click="turn(false)"
@@ -658,7 +692,7 @@ onBeforeUnmount(() => {
             {{ visiblePages }} / {{ location.start.displayed.total }} · {{ percent }}%
           </small>
         </span>
-        <button class="icon" aria-label="下一页" :disabled="!location || location.atEnd" @click="turn(true)">
+        <button class="icon" title="下一页" aria-label="下一页" :disabled="!location || location.atEnd" @click="turn(true)">
           <ChevronRight />
         </button>
       </div>
@@ -678,6 +712,10 @@ onBeforeUnmount(() => {
         <h2>{{ panel }}</h2>
         <button class="icon" aria-label="关闭面板" @click="dialog?.close()"><X /></button>
       </header>
+      <dl v-if="panel === '阅读时长'" class="time-stats">
+        <dt>本次阅读</dt><dd>{{ duration(elapsed) }}</dd>
+        <dt>本书累计</dt><dd>{{ duration((record.readingMs || 0) + elapsed) }}</dd>
+      </dl>
       <div v-if="panel === '目录'" class="toc-list">
         <div v-for="t in visibleToc" :key="t.index" class="toc-row"
           :style="{ paddingInlineStart: Math.min(t.depth, 6) * 0.8 + 'rem' }">
@@ -795,6 +833,7 @@ onBeforeUnmount(() => {
           </select>
         </label>
         <small v-if="twoPage && !spreadVisible && location">窗口宽度达到 {{ minSpreadWidth }} 像素时显示双栏。</small>
+        <details><summary>WebDAV 进度同步</summary><SyncSettings /></details>
         <button :disabled="!voices.length" @click="readAloud">
           <Volume2 />
           {{ speak ? '停止朗读' : voices.length ? '从这里朗读本章' : '系统暂无离线语音' }}

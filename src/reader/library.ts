@@ -1,3 +1,5 @@
+import type { Position } from '../../desktop/webdav.mjs'
+
 export interface Mark {
   kind: 'bookmark' | 'highlight'
   cfi: string
@@ -17,6 +19,8 @@ export interface ShelfBook {
   cfi: string
   progress: number
   chapter: string
+  readingMs?: number
+  pendingPosition?: Position
   marks: Mark[]
 }
 
@@ -24,10 +28,25 @@ let database: Promise<IDBDatabase> | undefined
 async function db() {
   if (!database) {
     database = new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('readbox-library', 1)
-      request.onupgradeneeded = () => {
-        request.result.createObjectStore('books', { keyPath: 'id' })
-        request.result.createObjectStore('files')
+      const request = indexedDB.open('readbox-library', 2)
+      request.onupgradeneeded = event => {
+        if (event.oldVersion === 0) {
+          request.result.createObjectStore('books', { keyPath: 'id' })
+          request.result.createObjectStore('files')
+        } else {
+          const cursor = request.transaction!.objectStore('books').openCursor()
+          cursor.onsuccess = () => {
+            const entry = cursor.result
+            if (!entry) return
+            const book: ShelfBook = entry.value
+            if (book.cfi && book.lastRead) {
+              const { id, cfi, chapter, progress, lastRead } = book
+              book.pendingPosition = { id, cfi, chapter, progress, updated: lastRead }
+              entry.update(book)
+            }
+            entry.continue()
+          }
+        }
       }
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
