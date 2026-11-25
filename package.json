@@ -18,6 +18,7 @@
     "notes": "python3 scripts/release.py notes"
   },
   "dependencies": {
+    "@lucide/vue": "1.79.0",
     "epubjs": "0.3.93",
     "vue": "3.5.46"
   },
