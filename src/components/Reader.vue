@@ -708,7 +708,7 @@ onBeforeUnmount(() => {
       </nav>
     </footer>
     <dialog ref="dialog" class="reader-dialog" :aria-label="panel" @close="afterDialog">
-      <header>
+      <header class="panel-heading">
         <h2>{{ panel }}</h2>
         <button class="icon" aria-label="关闭面板" @click="dialog?.close()"><X /></button>
       </header>
@@ -784,54 +784,69 @@ onBeforeUnmount(() => {
       </template>
       <p v-if="panel === '脚注'" class="footnote">{{ footnote }}</p>
       <div v-if="panel === '阅读设置'" class="preferences">
-        <fieldset>
+        <fieldset class="paper-choices">
           <legend>纸张</legend>
-          <button
-            v-for="name in ['跟随系统', ...Object.keys(palettes)]"
-            :key="name"
-            :aria-pressed="prefs.theme === name"
-            @click="prefs.theme = String(name)"
-          >
-            {{ name }}
-          </button>
+          <div class="paper-options">
+            <button
+              v-for="name in ['跟随系统', ...Object.keys(palettes)]"
+              :key="name"
+              :aria-pressed="prefs.theme === name"
+              @click="prefs.theme = String(name)"
+            >
+              <span class="paper-swatch" aria-hidden="true" :style="{ background: palettes[name]?.[0] }"></span>
+              {{ name }}
+            </button>
+          </div>
         </fieldset>
-        <label>
-          字号
-          <input v-model.number="prefs.size" type="range" min="75" max="180" step="5" />
-          {{ prefs.size }}%
-        </label>
-        <label>
-          字体
-          <select v-model="prefs.font" aria-label="字体">
-            <option>书籍原样</option>
-            <option>宋体</option>
-            <option>黑体</option>
-          </select>
-        </label>
-        <label>
-          版心宽度
-          <select v-model="prefs.width" aria-label="版心宽度">
-            <option>窄幅</option>
-            <option>标准</option>
-            <option>宽幅</option>
-          </select>
-        </label>
-        <label>
-          行距
-          <select v-model="prefs.spacing" aria-label="行距">
-            <option>原书</option>
-            <option>紧凑</option>
-            <option>舒展</option>
-          </select>
-        </label>
-        <label>
-          阅读方式
-          <select v-model="prefs.flow" aria-label="阅读方式">
-            <option value="paginated">{{ desktopPages ? '单栏分页' : '左右分页' }}</option>
-            <option v-if="desktopPages" value="two-page">双栏分页</option>
-            <option value="scrolled-doc">章节内滚动</option>
-          </select>
-        </label>
+        <div class="setting-list">
+          <label class="setting-row size-row">
+            字号
+            <span>
+              <input v-model.number="prefs.size" aria-label="字号" type="range" min="75" max="180" step="5" />
+              <output>{{ prefs.size }}%</output>
+            </span>
+          </label>
+          <label class="setting-row">
+            字体
+            <span class="value-picker">
+              <select v-model="prefs.font" aria-label="字体">
+                <option>书籍原样</option>
+                <option>宋体</option>
+                <option>黑体</option>
+              </select>
+            </span>
+          </label>
+          <label class="setting-row">
+            版心宽度
+            <span class="value-picker">
+              <select v-model="prefs.width" aria-label="版心宽度">
+                <option>窄幅</option>
+                <option>标准</option>
+                <option>宽幅</option>
+              </select>
+            </span>
+          </label>
+          <label class="setting-row">
+            行距
+            <span class="value-picker">
+              <select v-model="prefs.spacing" aria-label="行距">
+                <option>原书</option>
+                <option>紧凑</option>
+                <option>舒展</option>
+              </select>
+            </span>
+          </label>
+          <label class="setting-row">
+            阅读方式
+            <span class="value-picker">
+              <select v-model="prefs.flow" aria-label="阅读方式">
+                <option value="paginated">{{ desktopPages ? '单栏分页' : '左右分页' }}</option>
+                <option v-if="desktopPages" value="two-page">双栏分页</option>
+                <option value="scrolled-doc">章节内滚动</option>
+              </select>
+            </span>
+          </label>
+        </div>
         <small v-if="twoPage && !spreadVisible && location">窗口宽度达到 {{ minSpreadWidth }} 像素时显示双栏。</small>
         <details><summary>WebDAV 进度同步</summary><SyncSettings /></details>
         <button :disabled="!voices.length" @click="readAloud">

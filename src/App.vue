@@ -7,7 +7,6 @@ import {
   Clock3,
   FolderPlus,
   Search,
-  SlidersHorizontal,
   ArrowRight,
   Trash2,
   Settings2,
@@ -294,8 +293,7 @@ onUnmounted(() => {
               {{ f.name }}
             </button>
           </nav>
-          <label class="sort">
-            <SlidersHorizontal />
+          <label class="value-picker sort">
             <select v-model="order" aria-label="书架排序">
               <option>最近阅读</option>
               <option>导入时间</option>
@@ -333,21 +331,21 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
-    <dialog ref="modal" :class="{ 'sync-dialog': syncSettings }" :aria-label="syncSettings ? '进度同步' : undefined" @close="syncSettings = false">
+    <dialog ref="modal" :class="{ 'settings-dialog': !deleting }" :aria-label="deleting ? '移除书籍' : syncSettings ? '进度同步' : '显示设置'" @close="syncSettings = false">
       <template v-if="deleting">
         <h2>移除《{{ deleting.title }}》？</h2>
         <p>这会一并移除本机的阅读进度、书签和笔记。</p>
         <button class="danger" @click="erase">确认移除</button>
       </template>
-      <template v-else-if="syncSettings">
-        <header class="sync-heading">
-          <h2>进度同步</h2>
+      <template v-else>
+        <header class="panel-heading">
+          <h2>{{ syncSettings ? '进度同步' : '显示设置' }}</h2>
           <button class="icon" aria-label="关闭" @click="modal?.close()"><X /></button>
         </header>
-        <SyncSettings />
+        <SyncSettings v-if="syncSettings" />
+        <DisplaySettings v-else />
       </template>
-      <DisplaySettings v-else />
-      <button v-if="!syncSettings" @click="modal?.close()">{{ deleting ? '取消' : '关闭' }}</button>
+      <button v-if="deleting" @click="modal?.close()">取消</button>
     </dialog>
   </div>
 </template>

@@ -56,33 +56,36 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <section v-if="desktop" aria-labelledby="display">
-    <h2 id="display">显示设置</h2>
-    <label v-if="settings">
-      <input
-        type="checkbox"
-        :checked="settings.hardwareRequested"
-        :disabled="pending"
-        @change="update(($event.target as HTMLInputElement).checked)"
-      />
-      启用硬件加速
-    </label>
-    <div v-if="settings" role="status">
-      <p>{{ settings.gpuCompositing ? '当前使用 GPU 合成' : '当前使用软件合成' }}</p>
-      <p v-if="settings.forceSoftware">本次启动已强制使用软件绘制。</p>
-      <p v-if="settings.restartRequired">设置已保存，下次启动时生效。</p>
-    </div>
-    <h2>老板键</h2>
-    <label>隐藏 / 恢复
-      <input class="shortcut-input" readonly :value="shortcut || '未设置'" :disabled="registering"
-        aria-label="老板键快捷键" @keydown="capture" />
-    </label>
-    <small>点击输入框，按下单个键（如 F8）或组合键。该快捷键在其他应用中也会生效。</small>
-    <button v-if="shortcut" :disabled="registering" @click="bindKey('')">关闭老板键</button>
-    <p v-if="shortcutStatus" role="status">{{ shortcutStatus }}</p>
+  <div v-if="desktop" class="display-settings">
+    <section aria-label="绘制方式">
+      <label v-if="settings" class="setting-row">
+        启用硬件加速
+        <input
+          type="checkbox" role="switch"
+          :checked="settings.hardwareRequested"
+          :disabled="pending"
+          @change="update(($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+      <div v-if="settings" role="status">
+        <p>{{ settings.gpuCompositing ? '当前使用 GPU 合成' : '当前使用软件合成' }}</p>
+        <p v-if="settings.forceSoftware">本次启动已强制使用软件绘制。</p>
+        <p v-if="settings.restartRequired">设置已保存，下次启动时生效。</p>
+      </div>
+    </section>
+    <section aria-labelledby="shortcut-title">
+      <h3 id="shortcut-title">老板键</h3>
+      <label class="setting-row">隐藏 / 恢复
+        <input class="shortcut-input" readonly :value="shortcut || '未设置'" :disabled="registering"
+          aria-label="老板键快捷键" @keydown="capture" />
+      </label>
+      <small>点击输入框，按下单个键（如 F8）或组合键。该快捷键在其他应用中也会生效。</small>
+      <button v-if="shortcut" :disabled="registering" @click="bindKey('')">关闭老板键</button>
+      <p v-if="shortcutStatus" role="status">{{ shortcutStatus }}</p>
+    </section>
     <p v-if="error" role="alert">
       {{ error }}
       <button @click="update()">重新读取</button>
     </p>
-  </section>
+  </div>
 </template>

@@ -94,7 +94,7 @@ async function launch(extraArgs, verify, dataDir = profile) {
     const page = await app.firstWindow()
     await page.locator('#ready').waitFor()
     await page.getByRole("button", { name: "显示设置" }).click()
-    const toggle = page.getByRole('checkbox', { name: '启用硬件加速' })
+    const toggle = page.getByRole('switch', { name: '启用硬件加速' })
     await toggle.waitFor()
     await verify(page, toggle, app)
   } finally {
@@ -130,6 +130,20 @@ try {
   await launch([], async (page) => {
     const button = name => page.getByRole('button', { name, exact: true })
     await button('关闭').click()
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    await page.setViewportSize({ width: 320, height: 640 })
+    assert.ok(await page.evaluate(() => {
+      const width = document.documentElement.clientWidth
+      return document.documentElement.scrollWidth <= width &&
+        [...document.querySelectorAll('.topinner button, .shelf-tools button, .sort select')].every(control => {
+          const bounds = control.getBoundingClientRect()
+          return bounds.width > 0 && bounds.left >= 0 && bounds.right <= width
+        })
+    }))
+    const sort = page.getByRole('combobox', { name: '书架排序' })
+    await sort.selectOption({ label: '书名' })
+    assert.equal(await sort.inputValue(), '书名')
+    await page.setViewportSize(viewport)
     await button('开始阅读').click()
     const frame = page.frameLocator('iframe')
     await frame.getByRole('heading', { name: '窗边的一页' }).waitFor()
