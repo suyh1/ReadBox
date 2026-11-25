@@ -21,6 +21,7 @@ import Reader from './components/Reader.vue'
 import MarqueeTitle from './components/MarqueeTitle.vue'
 import './library.css'
 import { listBooks, removeBook, updateBook, type ShelfBook } from './reader/library'
+import { scheduleUpload } from './reader/sync'
 import { importBook } from './reader/epub'
 import sample from './assets/书页之间.epub?inline&url'
 
@@ -149,9 +150,10 @@ function handleBack(event: PopStateEvent) {
   active.value = undefined
   void nextTick(refresh)
 }
-function showDialog(book?: ShelfBook, sync = false) {
+async function showDialog(book?: ShelfBook, sync = false) {
   syncSettings.value = sync
   deleting.value = book
+  await nextTick()
   modal.value?.showModal()
 }
 async function erase() {
@@ -180,6 +182,13 @@ async function restorePage() {
   if (extensionHost) {
     const id = new URL(window.location.href).searchParams.get('book')
     active.value = books.value.find(book => book.id === id)
+    // GeckoView uses separate documents for the reader and shelf, including
+    // native Back. Run the leave upload in the surviving shelf document.
+    if (active.value) sessionStorage.setItem('readbox-in-reader', '1')
+    else if (sessionStorage.getItem('readbox-in-reader')) {
+      sessionStorage.removeItem('readbox-in-reader')
+      scheduleUpload('leave')
+    }
   }
 }
 function pageShown(event: PageTransitionEvent) {
@@ -324,18 +333,21 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
-    <dialog ref="modal">
+    <dialog ref="modal" :class="{ 'sync-dialog': syncSettings }" :aria-label="syncSettings ? '进度同步' : undefined" @close="syncSettings = false">
       <template v-if="deleting">
         <h2>移除《{{ deleting.title }}》？</h2>
         <p>这会一并移除本机的阅读进度、书签和笔记。</p>
         <button class="danger" @click="erase">确认移除</button>
       </template>
       <template v-else-if="syncSettings">
-        <h2>进度同步</h2>
+        <header class="sync-heading">
+          <h2>进度同步</h2>
+          <button class="icon" aria-label="关闭" @click="modal?.close()"><X /></button>
+        </header>
         <SyncSettings />
       </template>
       <DisplaySettings v-else />
-      <button @click="modal?.close()">{{ deleting ? '取消' : '关闭' }}</button>
+      <button v-if="!syncSettings" @click="modal?.close()">{{ deleting ? '取消' : '关闭' }}</button>
     </dialog>
   </div>
 </template>

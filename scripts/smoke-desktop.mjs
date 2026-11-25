@@ -13,22 +13,38 @@ const secondProfile = await mkdtemp(path.join(os.tmpdir(), 'readbox-sync-'))
 const documents = new Map()
 let writes = 0
 let offline = false
-let directoryExists = false
+const collections = new Set(['/dav/'])
 let conflict = false
 const server = createServer(async (req, res) => {
   const file = documents.get(req.url)
   if (offline) res.writeHead(503)
   else if (req.headers.authorization !== 'Basic ' + Buffer.from('reader:app-password').toString('base64')) res.writeHead(401)
-  else if (req.method === 'MKCOL' && req.url === '/dav/ReadBox/') {
-    res.writeHead(directoryExists ? 405 : 201)
-    directoryExists = true
+  else if (req.method === 'PROPFIND') {
+    assert.equal(req.headers.depth, '0')
+    if (collections.has(req.url)) {
+      res.writeHead(207, { 'Content-Type': 'application/xml' })
+      res.end('<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response></D:multistatus>')
+      return
+    }
+    const parent = new URL('../', 'http://localhost' + req.url).pathname
+    res.writeHead(collections.has(parent) ? 404 : 409)
   }
-  else if (!/^\/dav\/ReadBox\/[a-f0-9]{64}\.json$/.test(req.url)) res.writeHead(400)
+  else if (req.method === 'MKCOL') {
+    const parent = new URL('../', 'http://localhost' + req.url).pathname
+    if (!collections.has(parent)) res.writeHead(409)
+    else {
+      // Another client creates the collection between PROPFIND and MKCOL.
+      collections.add(req.url)
+      res.writeHead(req.url.endsWith('/ReadBox/') ? 409 : 201)
+    }
+  }
+  else if (!/^\/dav\/books\/ReadBox\/[a-f0-9]{64}\.json$/.test(req.url)) res.writeHead(400)
   else if (req.method === 'GET' && file) { res.writeHead(200, { etag: file.etag }); res.end(file.json); return }
-  else if (req.method === 'GET') res.writeHead(404)
+  else if (req.method === 'GET') res.writeHead(collections.has('/dav/books/ReadBox/') ? 404 : 409,
+    { 'Last-Modified': new Date().toUTCString() })
   else if (req.method === 'PUT') {
     if (conflict) res.writeHead(412)
-    else if (!directoryExists) res.writeHead(409)
+    else if (!collections.has('/dav/books/ReadBox/')) res.writeHead(409)
     else if (file ? req.headers['if-match'] !== file.etag : req.headers['if-none-match'] !== '*') res.writeHead(412)
     else {
       let json = ''
@@ -42,18 +58,35 @@ const server = createServer(async (req, res) => {
 server.listen(0, '127.0.0.1')
 await once(server, 'listening')
 async function configure(page, auto) {
+  const button = name => page.getByRole('button', { name, exact: true })
   await page.getByRole('button', { name: '进度同步', exact: true }).click()
-  await page.getByLabel('WebDAV 目录 URL').fill('http://127.0.0.1:' + server.address().port + '/dav/')
+  const base = 'http://127.0.0.1:' + server.address().port + '/dav/'
+  await page.getByLabel('WebDAV 目录 URL').fill(base)
   await page.getByLabel('用户名', { exact: true }).fill('reader')
-  await page.getByLabel('应用密码', { exact: true }).fill('app-password')
+  const password = page.getByLabel('应用密码', { exact: true })
+  await password.fill('incorrect')
+  await button('检测连接').click()
+  await page.getByText(/WebDAV 拒绝访问/).waitFor()
+  await password.fill('app-password')
+  await button('显示应用密码').click()
+  assert.equal(await password.getAttribute('type'), 'text')
+  await button('隐藏应用密码').click()
+  assert.equal(await password.getAttribute('type'), 'password')
+  await button('检测连接').click()
+  await page.getByText('连接成功，目录可读取。').waitFor()
+  await page.getByLabel('WebDAV 目录 URL').fill(base + 'books/')
   await page.getByLabel('上传方式').selectOption({ label: auto ? '自动同步' : '手动同步' })
+  if (auto) {
+    await page.getByLabel('触发规则').selectOption('interval')
+    await page.getByLabel('上传间隔（秒）').fill('2')
+  }
   await page.getByRole('button', { name: '保存设置' }).click()
   await page.getByText('同步设置已保存。').waitFor()
   await page.getByRole('button', { name: '关闭', exact: true }).click()
 }
 async function launch(extraArgs, verify, dataDir = profile) {
   const app = await electron.launch({
-    executablePath, args: ['--user-data-dir=' + dataDir, ...extraArgs], chromiumSandbox: true,
+    executablePath, args: [...(executablePath ? [] : ['.']), '--user-data-dir=' + dataDir, ...extraArgs], chromiumSandbox: true,
     timeout: 30000,
   })
   try {
@@ -241,6 +274,11 @@ try {
     await button('阅读设置').click()
     await page.getByText('WebDAV 进度同步', { exact: true }).click()
     await page.getByText('已上传 1 本书的阅读进度。').waitFor()
+    assert.equal(await page.getByLabel('触发规则').inputValue(), 'interval')
+    assert.equal(await page.getByLabel('上传间隔（秒）').inputValue(), '2')
+    await page.getByLabel('触发规则').selectOption('leave')
+    await button('保存设置').click()
+    await page.getByText('同步设置已保存。').waitFor()
     assert.equal(writes, before + 1)
     await button('关闭面板').click()
     offline = true
@@ -261,6 +299,24 @@ try {
     await button('立即同步').click()
     await page.getByText('已上传 1 本书的阅读进度。').waitFor()
     assert.equal(writes, before + 2)
+    await button('关闭面板').click()
+    await button('书架').click()
+    await page.reload()
+    await button('进度同步').click()
+    assert.equal(await page.getByLabel('触发规则').inputValue(), 'leave')
+    assert.equal(await page.getByLabel('应用密码', { exact: true }).getAttribute('type'), 'password')
+    await button('关闭').click()
+    await button('接着读').click()
+    await pageNumber(2)
+    await button('下一页').click()
+    await pageNumber(3)
+    await page.waitForTimeout(2200)
+    assert.equal(writes, before + 2)
+    await button('书架').click()
+    await page.waitForFunction(() => !document.querySelector('.reader'))
+    await page.getByRole('button', { name: '进度同步', exact: true }).click()
+    await page.getByText('已上传 1 本书的阅读进度。').waitFor()
+    assert.equal(writes, before + 3)
   }, secondProfile)
   console.log('老板键、阅读计时、分页、批注、WebDAV 增量同步和跨设备续读检查通过')
 } finally {

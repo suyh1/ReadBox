@@ -1,8 +1,11 @@
 import { ref, shallowRef } from 'vue'
-import { normalizeDirectory, requestProgress, type DavConfig, type Position } from '../../desktop/webdav.mjs'
+import { normalizeDirectory, probeDirectory, requestProgress, type DavConfig, type Position } from '../../desktop/webdav.mjs'
 import { listBooks, updateBook } from './library'
 
 const storageKey = 'readbox-webdav'
+export const defaultConfig: DavConfig = {
+  url: '', username: '', password: '', auto: true, rule: 'both', intervalSeconds: 3,
+}
 export const davConfig = shallowRef<DavConfig | null>(null)
 export const syncMessage = ref('')
 export const syncing = ref(false)
@@ -12,17 +15,34 @@ let running: Promise<void> | undefined
 
 const configReady = (async () => {
   try {
-    davConfig.value = desktop ? await desktop.davSettings() : JSON.parse(localStorage.getItem(storageKey) || 'null')
+    const saved = desktop ? await desktop.davSettings() : JSON.parse(localStorage.getItem(storageKey) || 'null')
+    if (saved) davConfig.value = { ...defaultConfig, ...saved }
   } catch {
     syncMessage.value = '无法读取 WebDAV 设置，请重新配置。'
   }
 })()
 
+function connectionConfig(input: DavConfig) {
+  const value = { ...input, url: normalizeDirectory(input.url.trim()), username: input.username.trim() }
+  if (!value.username || value.username.includes(':') || !value.password) {
+    throw new Error('请输入有效的用户名和应用密码。')
+  }
+  return value
+}
+
+export async function testConnection(input: DavConfig) {
+  const value = connectionConfig(input)
+  const status = await (desktop?.probeDirectory ?? probeDirectory)(value)
+  if (status === 404) throw new Error('WebDAV 目录不存在，请核对地址。首次上传会创建缺少的子目录。')
+  checkResponse(status)
+}
+
 export async function saveConfig(input: DavConfig | null) {
   await configReady
-  const value = input && { ...input, url: normalizeDirectory(input.url.trim()), username: input.username.trim() }
-  if (value && (!value.username || value.username.includes(':') || !value.password)) {
-    throw new Error('请输入有效的用户名和应用密码。')
+  const value = input && connectionConfig(input)
+  if (value && (!Number.isInteger(value.intervalSeconds) || value.intervalSeconds < 1 || value.intervalSeconds > 3600)) {
+    if (value.auto && value.rule !== 'leave') throw new Error('请输入 1 至 3600 秒的上传间隔。')
+    value.intervalSeconds = davConfig.value?.intervalSeconds ?? defaultConfig.intervalSeconds
   }
   if (desktop) await desktop.saveDavSettings(value)
   else if (value) localStorage.setItem(storageKey, JSON.stringify(value))
@@ -37,6 +57,7 @@ export async function saveConfig(input: DavConfig | null) {
 function checkResponse(status: number) {
   if (status >= 200 && status < 300) return
   if (status === 401 || status === 403) throw new Error('WebDAV 拒绝访问，请检查用户名、应用密码和目录权限。')
+  if (status === 409) throw new Error('WebDAV 目录冲突（HTTP 409），请检查 ReadBox 路径是否被同名文件占用，以及目录的写入权限。')
   if (status === 429) throw new Error('WebDAV 请求过于频繁，请稍后重试。')
   throw new Error('WebDAV 返回 HTTP ' + status)
 }
@@ -60,7 +81,7 @@ async function download(config: DavConfig, id: string) {
 
 async function uploadPosition(config: DavConfig, local: Position) {
   const remote = await download(config, local.id)
-  if (davConfig.value !== config) return { position: remote.position, uploaded: false }
+  if (davConfig.value !== config) return false
   const uploaded = !remote.position || local.updated > remote.position.updated
   if (uploaded) {
     const etag = remote.etag?.startsWith('W/') ? null : remote.etag
@@ -74,43 +95,28 @@ async function uploadPosition(config: DavConfig, local: Position) {
       delete b.pendingPosition
     }
   })
-  return { position: uploaded ? local : remote.position, uploaded }
-}
-
-const uploads = new Map<string, ReturnType<typeof uploadPosition>>()
-function upload(config: DavConfig, position: Position) {
-  const current = uploads.get(position.id)
-  if (current) return current
-  const task = uploadPosition(config, position).finally(() => uploads.delete(position.id))
-  uploads.set(position.id, task)
-  return task
+  return uploaded
 }
 
 export async function openingPosition(id: string, pending?: Position) {
   await configReady
   const config = davConfig.value
   if (!config) return null
-  if (config.auto && pending) {
-    try {
-      // A quick reopen may beat the scheduled upload. Wait only for this book.
-      return (await upload(config, { ...pending })).position
-    } catch (error) {
-      syncMessage.value = syncError(error)
-      scheduleUpload(60000)
-      // A read-only directory can still supply a valid reading position.
-    }
-  }
-  return (await download(config, id)).position
+  const remote = (await download(config, id)).position
+  if (config.auto && pending && (!remote || pending.updated > remote.updated)) return pending
+  return remote
 }
 
-async function uploadPending(config: DavConfig) {
+async function uploadPending(config: DavConfig, manual: boolean) {
   let count = 0
   const failures: string[] = []
-  for (const book of await listBooks()) {
+  const books = await listBooks()
+  if (!manual && !books.some(book => book.pendingPosition)) return
+  for (const book of books) {
     if (davConfig.value !== config) return
     if (!book.pendingPosition) continue
     try {
-      if ((await upload(config, book.pendingPosition)).uploaded) count++
+      if (await uploadPosition(config, book.pendingPosition)) count++
     } catch (error) {
       failures.push(book.title + ' · ' + syncError(error))
     }
@@ -121,18 +127,18 @@ async function uploadPending(config: DavConfig) {
 }
 
 export function syncError(error: unknown) {
-  return error instanceof Error && /WebDAV|进度|服务器|设备/.test(error.message)
+  return error instanceof Error && /WebDAV|进度|服务器|设备|请输入/.test(error.message)
     ? error.message : '无法连接 WebDAV，请检查网络和目录地址。'
 }
 
-export function syncNow(): Promise<void> {
+export function syncNow(manual = true): Promise<void> {
   if (running) return running
   const config = davConfig.value
   if (!config) return Promise.resolve()
   syncing.value = true
-  running = uploadPending(config).catch(error => {
+  running = uploadPending(config, manual).catch(error => {
     syncMessage.value = syncError(error)
-    if (davConfig.value === config) scheduleUpload(60000)
+    if (davConfig.value === config && config.auto) queueUpload(config, 60000)
   }).finally(() => {
     syncing.value = false
     running = undefined
@@ -140,9 +146,7 @@ export function syncNow(): Promise<void> {
   return running
 }
 
-// Coalesce turns and retry the persisted queue after interruptions or a restart.
-export function scheduleUpload(delay = 3000) {
-  if (!davConfig.value?.auto) return
+function queueUpload(config: DavConfig, delay: number) {
   if (timer !== undefined) {
     if (delay !== 0) return
     clearTimeout(timer)
@@ -150,8 +154,13 @@ export function scheduleUpload(delay = 3000) {
   timer = window.setTimeout(async () => {
     timer = undefined
     if (running) await running
-    if (davConfig.value?.auto) await syncNow()
+    if (davConfig.value === config) await syncNow(false)
   }, delay)
 }
-void configReady.then(() => scheduleUpload(0))
-window.addEventListener('online', () => scheduleUpload(0))
+export function scheduleUpload(trigger: 'interval' | 'leave' = 'interval') {
+  const config = davConfig.value
+  if (!config?.auto || (config.rule !== 'both' && config.rule !== trigger)) return
+  queueUpload(config, trigger === 'leave' ? 0 : config.intervalSeconds * 1000)
+}
+void configReady.then(() => scheduleUpload())
+window.addEventListener('online', () => scheduleUpload())

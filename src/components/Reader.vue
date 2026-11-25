@@ -306,7 +306,7 @@ function relocated(loc: Location) {
         updated: positionTime,
       }
     }
-  }).then(() => { if (moved) scheduleUpload() }).catch(() => {
+  }).then(() => { if (moved) scheduleUpload(disposed ? 'leave' : 'interval') }).catch(() => {
     status.value = '阅读位置保存失败，请检查存储空间。'
   })
 }
@@ -627,7 +627,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   disposed = true
-  scheduleUpload(0)
+  scheduleUpload('leave')
   searchRun++
   stopSpeaking()
   synth?.removeEventListener('voiceschanged', refreshVoices)

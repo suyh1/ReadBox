@@ -139,6 +139,10 @@ if (!app.requestSingleInstanceLock()) {
     checkCaller(event)
     return (await import('./webdav.mjs')).requestProgress(config, id, write)
   })
+  ipcMain.handle('dav:probe', async (event, config) => {
+    checkCaller(event)
+    return (await import('./webdav.mjs')).probeDirectory(config)
+  })
   ipcMain.handle('display:read', event => { checkCaller(event); return rendering() })
   ipcMain.handle('display:write', (event, enabled) => {
     checkCaller(event)

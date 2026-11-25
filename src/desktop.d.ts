@@ -13,6 +13,7 @@ interface Window {
     davSettings(): Promise<import('../desktop/webdav.mjs').DavConfig | null>
     saveDavSettings(config: import('../desktop/webdav.mjs').DavConfig | null): Promise<void>
     requestProgress: typeof import('../desktop/webdav.mjs').requestProgress
+    probeDirectory: typeof import('../desktop/webdav.mjs').probeDirectory
     rendering(): Promise<RenderSettings>
     setHardwareAcceleration(enabled: boolean): Promise<RenderSettings>
   }

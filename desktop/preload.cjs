@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('readbox', {
   setShortcut: key => ipcRenderer.invoke('shortcut:write', key),
   davSettings: () => ipcRenderer.invoke('dav:read'),
   saveDavSettings: config => ipcRenderer.invoke('dav:save', config),
+  probeDirectory: config => ipcRenderer.invoke('dav:probe', config),
   requestProgress: (config, id, write) => ipcRenderer.invoke('dav:request', config, id, write),
   rendering: () => ipcRenderer.invoke('display:read'),
   setHardwareAcceleration: enabled => ipcRenderer.invoke('display:write', enabled),

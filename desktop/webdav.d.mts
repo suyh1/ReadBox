@@ -3,6 +3,8 @@ export interface DavConfig {
   username: string
   password: string
   auto: boolean
+  rule: 'interval' | 'leave' | 'both'
+  intervalSeconds: number
 }
 export interface Position {
   id: string
@@ -17,6 +19,7 @@ export interface ProgressWrite {
   modified: string | null
 }
 export function normalizeDirectory(address: string): string
+export function probeDirectory(config: DavConfig): Promise<number>
 export function requestProgress(config: DavConfig, id: string, write?: ProgressWrite): Promise<{
   status: number
   body: string
