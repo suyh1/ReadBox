@@ -16,6 +16,7 @@ import {
 } from '@lucide/vue'
 import type { Book, Contents, Location, Rendition } from 'epubjs'
 import type Section from 'epubjs/types/section'
+import { ExtensionChapterView } from '../reader/extension-view'
 import {
   closeBook,
   contentsOf,
@@ -520,10 +521,12 @@ onMounted(async () => {
       flow: prefs.value.flow,
       spread: 'none',
       allowScriptedContent: false,
+      ...(window.location.protocol === 'moz-extension:' ? { view: ExtensionChapterView } : {}),
     })
     rendition.hooks.content.register(bindContent)
     rendition.on('relocated', relocated)
-    rendition.on('displayerror', () => {
+    rendition.on('displayerror', (cause: unknown) => {
+      console.warn('无法载入 EPUB 章节', cause)
       loading.value = false
       error.value = '本章无法载入，请从目录打开其他章节。'
     })

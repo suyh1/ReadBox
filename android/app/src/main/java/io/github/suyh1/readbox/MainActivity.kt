@@ -104,8 +104,8 @@ class MainActivity : Activity() {
                 }.toTypedArray()
             }
             runOnUiThread {
-                if (isDestroyed || prompt.isComplete) return@runOnUiThread
                 pendingFile = null
+                if (isDestroyed || prompt.isComplete) return@runOnUiThread
                 copies.onSuccess { result.complete(prompt.confirm(applicationContext, it)) }
                     .onFailure {
                         result.complete(prompt.dismiss())
@@ -118,6 +118,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val runtime = GeckoRuntime.getDefault(applicationContext)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            runtime.settings.setConsoleOutputEnabled(true)
+        }
         view = GeckoView(this)
         val container = FrameLayout(this)
         container.addView(view)
