@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('readbox', {
+  dataDirectory: () => ipcRenderer.invoke('storage:read'),
+  migrateData: () => ipcRenderer.invoke('storage:migrate'),
   onWindowActivity: callback => {
     let received = false
     const listener = (_event, active) => { received = true; callback(active) }

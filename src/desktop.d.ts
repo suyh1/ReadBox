@@ -7,6 +7,8 @@ interface RenderSettings {
 
 interface Window {
   readbox?: {
+    dataDirectory(): Promise<string>
+    migrateData(): Promise<void>
     onWindowActivity(callback: (active: boolean) => void): () => void
     shortcut(): Promise<{ key: string; active: boolean }>
     setShortcut(key: string): Promise<{ key: string; active: boolean }>

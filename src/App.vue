@@ -222,7 +222,7 @@ onUnmounted(() => {
           <button class="quiet" @click="collection?.scrollIntoView()">书架</button>
         </nav>
         <button class="icon" aria-label="进度同步" title="进度同步" @click="showDialog(undefined, true)"><Cloud /></button>
-        <button v-if="desktop" class="icon" aria-label="显示设置" @click="showDialog()"><Settings2 /></button>
+        <button v-if="desktop" class="icon" :disabled="busy" aria-label="桌面设置" @click="showDialog()"><Settings2 /></button>
       </div>
     </header>
     <main class="shelf">
@@ -331,7 +331,7 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
-    <dialog ref="modal" :class="{ 'settings-dialog': !deleting }" :aria-label="deleting ? '移除书籍' : syncSettings ? '进度同步' : '显示设置'" @close="syncSettings = false">
+    <dialog ref="modal" :class="{ 'settings-dialog': !deleting }" :aria-label="deleting ? '移除书籍' : syncSettings ? '进度同步' : '桌面设置'" @close="syncSettings = false">
       <template v-if="deleting">
         <h2>移除《{{ deleting.title }}》？</h2>
         <p>这会一并移除本机的阅读进度、书签和笔记。</p>
@@ -339,7 +339,7 @@ onUnmounted(() => {
       </template>
       <template v-else>
         <header class="panel-heading">
-          <h2>{{ syncSettings ? '进度同步' : '显示设置' }}</h2>
+          <h2>{{ syncSettings ? '进度同步' : '桌面设置' }}</h2>
           <button class="icon" aria-label="关闭" @click="modal?.close()"><X /></button>
         </header>
         <SyncSettings v-if="syncSettings" />

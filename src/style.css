@@ -416,6 +416,7 @@ dialog button + button {
 .display-settings { gap: 18px; }
 .display-settings section + section { border-top: 1px solid var(--line); padding-top: 16px; }
 .display-settings h3, .display-settings p { margin: 0; }
+.display-settings .data-directory { overflow-wrap: anywhere; user-select: text; }
 .display-settings p, .display-settings small { font-size: .86rem; line-height: 1.6; color: var(--muted); }
 .display-settings section > button { justify-self: start; }
 .display-settings input[role=switch] {

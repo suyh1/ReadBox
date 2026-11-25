@@ -1,18 +1,29 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, safeStorage } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, globalShortcut, safeStorage } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+const { dataDirectory, saveJson } = require('./data-directory.cjs')
 
-const preferences = path.join(app.getPath('userData'), 'display.json')
+const primary = app.requestSingleInstanceLock()
+let storage
+if (primary) {
+  try {
+    storage = dataDirectory(app.getPath('userData'))
+    app.setPath('sessionData', storage.current)
+  } catch (error) {
+    storage = undefined
+    app.whenReady().then(() => {
+      dialog.showErrorBox('无法打开 ReadBox 数据目录', error.message)
+      app.exit(1)
+    })
+  }
+}
+const dataRoot = storage?.current ?? app.getPath('userData')
+const preferences = path.join(dataRoot, 'display.json')
 const page = path.join(__dirname, '../dist/index.html')
 if (process.platform === 'win32') app.setAppUserModelId('io.github.suyh1.readbox')
-const shortcutFile = path.join(app.getPath('userData'), 'shortcut.json')
-const davFile = path.join(app.getPath('userData'), 'webdav.json')
-function saveJson(file, value) {
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file + '.tmp', JSON.stringify(value), { mode: 0o600 })
-  fs.renameSync(file + '.tmp', file)
-}
+const shortcutFile = path.join(dataRoot, 'shortcut.json')
+const davFile = path.join(dataRoot, 'webdav.json')
 
 let accelerator = 'F8'
 let registered = ''
@@ -110,12 +121,39 @@ function openWindow() {
   return window.loadFile(page)
 }
 
-if (!app.requestSingleInstanceLock()) {
+if (!primary) {
   app.quit()
-} else {
+} else if (storage) {
   app.on('second-instance', showWindow)
   app.on('will-quit', () => globalShortcut.unregisterAll())
   ipcMain.handle('window:active', event => { checkCaller(event); return isReadingWindowActive() })
+  ipcMain.handle('storage:read', event => { checkCaller(event); return storage.current })
+  let choosingDirectory = false
+  ipcMain.handle('storage:migrate', async event => {
+    checkCaller(event)
+    if (choosingDirectory) return
+    choosingDirectory = true
+    try {
+      const choice = await dialog.showOpenDialog(window, {
+        title: '选择存放 ReadBox 数据的位置', properties: ['openDirectory', 'createDirectory'],
+      })
+      if (choice.canceled) return
+      const parent = choice.filePaths[0]
+      const target = storage.destination(parent)
+      const confirmation = await dialog.showMessageBox(window, {
+        type: 'question', message: '重启并迁移书库？',
+        detail: '新目录：' + target + '\n\n书籍、笔记、阅读进度和设置将移至新目录。迁移成功后会清理旧目录中的这些数据。大书库可能需要几分钟。',
+        buttons: ['取消', '迁移并重启'], defaultId: 0, cancelId: 0,
+      })
+      if (confirmation.response !== 1) return
+      window.webContents.session.flushStorageData()
+      storage.schedule(parent)
+      app.relaunch()
+      app.quit()
+    } finally {
+      choosingDirectory = false
+    }
+  })
   ipcMain.handle('shortcut:read', event => {
     checkCaller(event)
     return { key: accelerator, active: !!registered }
@@ -152,6 +190,7 @@ if (!app.requestSingleInstanceLock()) {
     return rendering()
   })
   app.whenReady().then(() => {
+    if (storage.notice) dialog.showMessageBoxSync({ type: 'warning', title: '数据迁移', message: storage.notice })
     try { if (accelerator && registerShortcut(accelerator)) registered = accelerator } catch { /* Configurable in settings. */ }
     return openWindow()
   }).catch(error => { console.error(error); app.exit(1) })

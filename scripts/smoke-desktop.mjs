@@ -93,7 +93,7 @@ async function launch(extraArgs, verify, dataDir = profile) {
   try {
     const page = await app.firstWindow()
     await page.locator('#ready').waitFor()
-    await page.getByRole("button", { name: "显示设置" }).click()
+    await page.getByRole("button", { name: "桌面设置" }).click()
     const toggle = page.getByRole('switch', { name: '启用硬件加速' })
     await toggle.waitFor()
     await verify(page, toggle, app)
@@ -340,3 +340,5 @@ try {
   await rm(secondProfile, { recursive: true, force: true, maxRetries: 3 })
   await rm(profile, { recursive: true, force: true, maxRetries: 3 })
 }
+
+await import('./smoke-migration.mjs')

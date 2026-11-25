@@ -5,6 +5,20 @@ const desktop = window.readbox
 const settings = ref<RenderSettings>()
 const pending = ref(false)
 const error = ref('')
+const directory = ref('')
+const choosingDirectory = ref(false)
+const directoryError = ref('')
+
+async function migrateData() {
+  if (!desktop || choosingDirectory.value) return
+  choosingDirectory.value = true
+  directoryError.value = ''
+  try {
+    await desktop.migrateData()
+  } catch (e) {
+    directoryError.value = e instanceof Error ? e.message.replace(/^.*?Error: /, '') : '无法迁移，请检查目录权限。'
+  } finally { choosingDirectory.value = false }
+}
 
 async function update(enabled?: boolean) {
   if (!desktop) return
@@ -48,6 +62,8 @@ function capture(event: KeyboardEvent) {
 }
 onMounted(async () => {
   void update()
+  try { directory.value = await desktop?.dataDirectory() ?? '' }
+  catch { directoryError.value = '无法读取数据目录。' }
   try {
     const result = await desktop?.shortcut()
     shortcut.value = result?.key || ''
@@ -82,6 +98,13 @@ onMounted(async () => {
       <small>点击输入框，按下单个键（如 F8）或组合键。该快捷键在其他应用中也会生效。</small>
       <button v-if="shortcut" :disabled="registering" @click="bindKey('')">关闭老板键</button>
       <p v-if="shortcutStatus" role="status">{{ shortcutStatus }}</p>
+    </section>
+    <section aria-labelledby="storage-title">
+      <h3 id="storage-title">数据与书籍</h3>
+      <p class="data-directory">当前目录：{{ directory }}</p>
+      <small>选择存放位置后，将在其中创建 ReadBox 文件夹并迁移现有书库。</small>
+      <button :disabled="!directory || choosingDirectory" @click="migrateData">更改存储位置…</button>
+      <p v-if="directoryError" role="alert">{{ directoryError }}</p>
     </section>
     <p v-if="error" role="alert">
       {{ error }}
