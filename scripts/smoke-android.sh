@@ -11,7 +11,7 @@ adb shell am start -W -n "$app/io.github.suyh1.readbox.MainActivity"
 wait_control() {
   local label=$1
   echo "等待界面元素 $label"
-  local tree coords
+  local tree coords x y
   tree=$(mktemp)
   for attempt in {1..20}; do
     if adb shell uiautomator dump /sdcard/readbox-window.xml >/dev/null &&
@@ -22,7 +22,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 for node in ET.parse(sys.argv[1]).iter('node'):
-    if sys.argv[2] not in (node.get('text'), node.get('content-desc')):
+    if not any(sys.argv[2] in node.get(attr, '') for attr in ('text', 'content-desc')):
         continue
     left, top, right, bottom = map(int, re.findall(r'-?\d+', node.get('bounds', '')))
     if right > left and bottom > top:
@@ -39,11 +39,6 @@ PY
       fi
       return 0
     fi
-    # GeckoView exposes the focused chapter as a separate WebView. When looking
-    # for its sibling toolbar, move keyboard focus out of the chapter first.
-    if [[ $label == *书签 ]] && grep -q 'class="android.webkit.WebView"' "$tree"; then
-      adb shell input keyevent KEYCODE_TAB
-    fi
     sleep 1
   done
   cat "$tree" >&2
@@ -55,9 +50,31 @@ PY
 wait_control '我的书房'
 wait_control '开始阅读' tap
 wait_control '窗边的一页'
-wait_control '加书签' tap
-wait_control '已加书签'
+# Gecko can report the chapter as the entire accessibility root. Tap the actual
+# bookmark button in the bottom toolbar and verify its persisted result on the shelf.
+coords=$(adb exec-out cat /sdcard/readbox-window.xml | python3 -c '
+import re, sys
+import xml.etree.ElementTree as ET
+nodes = list(ET.parse(sys.stdin).iter("node"))
+def bounds(node):
+    return list(map(int, re.findall(r"-?\d+", node.get("bounds"))))
+button = next((n for n in nodes if n.get("text") == "加书签"), None)
+if button is not None:
+    x1, y1, x2, y2 = bounds(button)
+    print((x1+x2)//2, (y1+y2)//2)
+else:
+    chapter = next(n for n in nodes if n.get("class") == "android.webkit.WebView")
+    x1, _, x2, bottom = bounds(chapter)
+    nav = next((n for n in nodes if n.get("resource-id") == "android:id/navigationBarBackground"), None)
+    safe_bottom = bounds(nav)[1] if nav is not None else bounds(nodes[0])[3]
+    print(x1 + (x2-x1)*9//10, bottom + (safe_bottom-bottom)*4//5)
+')
+read -r x y <<< "$coords"
+adb shell input tap "$x" "$y"
 adb shell input keyevent KEYCODE_BACK
+wait_control '1 条书摘'
+adb shell am force-stop "$app"
+adb shell am start -W -n "$app/io.github.suyh1.readbox.MainActivity"
+wait_control '1 条书摘'
 wait_control '接着读' tap
-wait_control '窗边的一页'
-wait_control '已加书签'
+wait_control '清晨，光从窗框的左侧落下来'

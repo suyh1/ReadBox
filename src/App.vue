@@ -198,7 +198,9 @@ onUnmounted(() => window.removeEventListener('popstate', handleBack))
           </span>
           <h2>{{ featured?.title || '书页之间' }}</h2>
           <p>{{ featured ? featured.author : '三篇关于阅读的短随笔' }}</p>
-          <small v-if="featured?.lastRead">{{ featured.chapter }} · {{ featured.progress }}%</small>
+          <small v-if="featured?.lastRead">
+            {{ featured.chapter }} · {{ featured.progress }}%<span v-if="featured.marks.length"> · {{ featured.marks.length }} 条书摘</span>
+          </small>
           <button
             :disabled="busy"
             class="feature-action"
