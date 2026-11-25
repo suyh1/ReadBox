@@ -22,7 +22,7 @@ ReadBox 是面向中文 EPUB 的离线阅读器。打开「我的书房」可以
 | Windows x64 | Electron 45.0.0、可选择安装目录的 NSIS 离线 EXE | 安装、普通用户冷启动、卸载 |
 | Linux amd64 | 同版 Electron、gzip DEB | 桌面安装、菜单启动、显示设置持久化 |
 | Linux arm64 | 同版 Electron、gzip DEB；参考银河麒麟桌面 V10 SP1 | 干净目标系统断网安装、X11 或 XWayland 启动、滚动流畅度 |
-| Android | Kotlin、GeckoView、单个签名 APK；最低 Android 8.0 | 小米真机断网冷启动、系统栏、返回手势与同签名覆盖升级 |
+| Android | Kotlin、GeckoView、按处理器架构发布签名 APK；最低 Android 8.0 | 小米真机断网冷启动、系统栏、返回手势与同签名覆盖升级 |
 
 安装包自带渲染引擎和前端资源。用户在支持的桌面系统上安装 ReadBox 即可使用。Linux 使用系统已有的 glibc、GTK 3、NSS 等桌面基础库。ARM64 的打包流程扫描随包 ELF 符号需求，基线上限为 glibc 2.31。麒麟兼容状态需通过 ReadBox 自身在目标系统的验收确认。[DevKit 2.7.2 麒麟基线](https://github.com/suyh1/DevKit/tree/2.7.2)
 
@@ -57,7 +57,11 @@ Android 使用 JDK 17、Android SDK Platform 37.1 和 Build Tools 36.0.0。设�
 ./android/gradlew -p android :app:assembleDebug
 ```
 
-Windows 可用 `android\gradlew.bat -p android :app:assembleDebug`。SDK、Gradle 和 Mozilla Maven 依赖在构建机下载。APK 内的 GeckoView 加载随包的本地页面。调试包使用独立应用 ID，可与正式版共存。
+Windows 可用 `android\gradlew.bat -p android :app:assembleDebug`。SDK、Gradle 和 Mozilla Maven 依赖在构建机下载。APK 内的 GeckoView 加载随包的本地页面。构建产物位于 `android/app/build/outputs/apk/debug/`。每个 APK 只包含一种架构的 GeckoView 原生库，安装时由系统解压，安装后的占用会高于下载大小。调试包使用独立应用 ID，可与正式版共存。
+
+## 选择 Android 安装包
+
+大多数近年的小米及其他 Android 手机下载文件名以 `-android-arm64-v8a.apk` 结尾的版本。32 位 ARM 设备选 `armeabi-v7a`，Intel/AMD 的 64 位 Android 设备或 x86_64 模拟器选 `x86_64`。每台设备只安装一个 APK。通过 ADB 连接时可运行 `adb shell getprop ro.product.cpu.abi` 查看设备首选架构。
 
 ## 发布
 
@@ -72,4 +76,4 @@ GitHub Actions 对 main 分支推送与 PR 执行构建，验证 Windows 安装�
 | `ANDROID_KEY_ALIAS` | 签名密钥别名 |
 | `ANDROID_KEY_PASSWORD` | 签名密钥口令 |
 
-版本标签触发签名构建，四种安装包及校验通过后上传到同一份 GitHub Release，再公开中文更新说明和 `SHA256SUMS`。普通分支及 PR 使用调试签名，仅上传 Actions 构建产物。
+版本标签触发签名构建，三个桌面安装包和三个 Android APK 校验通过后上传到同一份 GitHub Release，再公开中文更新说明和 `SHA256SUMS`。普通分支及 PR 使用调试签名，仅上传 Actions 构建产物。

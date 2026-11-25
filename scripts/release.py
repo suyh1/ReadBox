@@ -1,4 +1,4 @@
-"""Create Chinese release notes and verify the complete four-package set."""
+"""Create Chinese release notes and verify the complete set of platform packages."""
 import argparse
 import hashlib
 import json
@@ -31,10 +31,11 @@ def notes():
 
 
 def checksums(directory):
-    suffixes = ["windows-x64.exe", "linux-amd64.deb", "linux-arm64.deb", "android.apk"]
+    suffixes = ["windows-x64.exe", "linux-amd64.deb", "linux-arm64.deb"]
+    suffixes.extend(f"android-{abi}.apk" for abi in ("arm64-v8a", "armeabi-v7a", "x86_64"))
     files = [directory / f"ReadBox-{VERSION}-{suffix}" for suffix in suffixes]
     if sorted(directory.iterdir()) != sorted(files):
-        raise ValueError("发布目录必须包含与版本匹配的四种安装包")
+        raise ValueError("发布目录必须包含与版本匹配的桌面安装包和三种架构的 APK")
     lines = []
     for file in files:
         if not file.is_file() or not file.stat().st_size:

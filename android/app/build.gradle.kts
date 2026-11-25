@@ -26,6 +26,15 @@ android {
         versionCode = major * 1000000 + minor * 1000 + patch + 1
         versionName = readboxVersion
     }
+    splits.abi {
+        isEnable = true
+        reset()
+        include("arm64-v8a", "armeabi-v7a", "x86_64")
+        isUniversalApk = false
+    }
+    // Compress Gecko's native libraries in the APK. Android extracts them at install time.
+    packaging.jniLibs.useLegacyPackaging = true
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

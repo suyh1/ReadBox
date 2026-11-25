@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-apk=$(ls out/*.apk)
+abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
+apks=(out/*-android-"$abi".apk)
+[[ ${#apks[@]} -eq 1 && -f ${apks[0]} ]] || { echo "找不到与 $abi 匹配的唯一 APK" >&2; exit 1; }
+apk=${apks[0]}
 app=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
 adb shell svc wifi disable
 adb shell svc data disable

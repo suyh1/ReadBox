@@ -127,15 +127,23 @@ jobs:
           ./android/gradlew -p android :app:assembleRelease
       - name: 验证签名、内置引擎与启动资源
         run: |
-          apk=$(ls android/app/build/outputs/apk/*/*.apk)
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
-          unzip -Z1 "$apk" > "$RUNNER_TEMP/apk-files.txt"
-          grep -Fx 'lib/arm64-v8a/libxul.so' "$RUNNER_TEMP/apk-files.txt"
-          grep -Fx 'assets/ui/index.html' "$RUNNER_TEMP/apk-files.txt"
-          grep -Fx 'assets/ui/manifest.json' "$RUNNER_TEMP/apk-files.txt"
           version=$(jq -r .version package.json)
+          build_tools="$ANDROID_HOME/build-tools/36.0.0"
           mkdir -p out
-          cp "$apk" "out/ReadBox-$version-android.apk"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            apks=(android/app/build/outputs/apk/*/app-"$abi"-*.apk)
+            test "${#apks[@]}" -eq 1
+            apk=${apks[0]}
+            "$build_tools/apksigner" verify "$apk"
+            "$build_tools/aapt" dump badging "$apk" | grep -Fx "native-code: '$abi'"
+            unzip -Z1 "$apk" > "$RUNNER_TEMP/apk-files.txt"
+            grep -Fx "lib/$abi/libxul.so" "$RUNNER_TEMP/apk-files.txt"
+            grep -Fx 'assets/ui/index.html' "$RUNNER_TEMP/apk-files.txt"
+            grep -Fx 'assets/ui/manifest.json' "$RUNNER_TEMP/apk-files.txt"
+            bytes=$(stat -c %s "$apk")
+            echo "$abi APK: $bytes bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+            cp "$apk" "out/ReadBox-$version-android-$abi.apk"
+          done
       - name: 启用 Android 模拟器加速
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -155,8 +163,18 @@ jobs:
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
-          name: package-android
-          path: out/*.apk
+          name: package-android-arm64-v8a
+          path: out/*-android-arm64-v8a.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-android-armeabi-v7a
+          path: out/*-android-armeabi-v7a.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-android-x86_64
+          path: out/*-android-x86_64.apk
           if-no-files-found: error
 
   release:
