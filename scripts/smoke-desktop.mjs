@@ -75,6 +75,15 @@ try {
     await button('接着读').click()
     await frame.getByRole('heading', { name: '折角与余白' }).waitFor()
     await button('已加书签').waitFor()
+    await page.setViewportSize({ width: 320, height: 640 })
+    await page.waitForFunction(() => {
+      const tools = document.querySelector('.reader-tools')
+      const buttons = Array.from(tools.querySelectorAll('button'))
+      return buttons.every(button => {
+        const rect = button.getBoundingClientRect()
+        return rect.width > 0 && rect.left >= 0 && rect.right <= window.innerWidth
+      })
+    })
   })
   console.log('桌面启动、显示设置、EPUB 阅读、批注与续读检查通过')
 } finally {

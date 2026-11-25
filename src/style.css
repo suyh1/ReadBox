@@ -451,6 +451,7 @@ dialog button + button {
   height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   background: var(--paper);
   color: var(--print);
   position: relative;
@@ -474,6 +475,7 @@ dialog button + button {
   text-overflow: ellipsis;
 }
 .reading-area {
+  min-width: 0;
   position: relative;
   min-height: 0;
   width: min(100%, 850px);
