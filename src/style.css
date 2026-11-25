@@ -496,7 +496,15 @@ dialog button + button {
 .sync-settings label, .sync-password {
   display: grid; justify-content: stretch; gap: 4px; margin: 0; min-height: 0; font-size: .88rem;
 }
-.sync-settings input, .sync-settings select { width: 100%; min-width: 0; min-height: 42px; }
+.sync-settings input { width: 100%; min-width: 0; min-height: 42px; }
+.sync-choice legend { color: var(--ink); font-size: .88rem; font-weight: normal; padding-bottom: 4px; }
+.sync-segments { display: flex; gap: 2px; padding: 3px; background: var(--soft); border-radius: 10px; }
+.sync-segments label { position: relative; flex: 1; min-width: 0; }
+.sync-segments input { position: absolute; inset: 0; height: 100%; min-height: 0; margin: 0; opacity: 0; cursor: pointer; }
+.sync-segments span { display: grid; place-items: center; min-height: 42px; padding: 0 4px; text-align: center; color: var(--muted); border-radius: 7px; }
+.sync-segments input:checked + span { color: var(--ink); background: var(--panel); font-weight: 600; box-shadow: 0 1px 4px #24263824; }
+.sync-segments input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sync-segments input:disabled + span { opacity: .6; }
 .sync-fields { display: grid; gap: 10px; }
 @container (min-width: 360px) {
   .sync-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

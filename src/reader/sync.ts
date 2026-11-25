@@ -4,7 +4,7 @@ import { listBooks, updateBook } from './library'
 
 const storageKey = 'readbox-webdav'
 export const defaultConfig: DavConfig = {
-  url: '', username: '', password: '', auto: true, rule: 'both', intervalSeconds: 3,
+  url: 'https://dav.jianguoyun.com/dav/', username: '', password: '', auto: true, rule: 'both', intervalSeconds: 3,
 }
 export const davConfig = shallowRef<DavConfig | null>(null)
 export const syncMessage = ref('')

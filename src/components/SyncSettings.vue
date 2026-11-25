@@ -4,6 +4,15 @@ import { Eye, EyeOff } from '@lucide/vue'
 import { davConfig, defaultConfig, saveConfig, syncNow, syncing, syncMessage, syncError, testConnection } from '../reader/sync'
 
 const passwordId = useId()
+const modes = [
+  { value: true, label: '自动同步' },
+  { value: false, label: '手动同步' },
+]
+const rules = [
+  { value: 'interval', label: '定时上传' },
+  { value: 'leave', label: '离开书籍时' },
+  { value: 'both', label: '两者都用' },
+] as const
 const form = ref({ ...defaultConfig })
 const revealed = ref(false)
 const saving = ref(false)
@@ -50,7 +59,7 @@ async function save(clear = false) {
       <legend>WebDAV 连接</legend>
       <small>在各台设备上填写同一目录，打开同一本书即可接着读。</small>
       <label>WebDAV 目录 URL
-        <input v-model="form.url" type="url" required placeholder="https://dav.jianguoyun.com/dav/" />
+        <input v-model="form.url" type="url" required />
       </label>
       <small v-if="form.url.startsWith('http://')">HTTP 会以明文传输应用密码。</small>
       <div class="sync-fields">
@@ -74,24 +83,29 @@ async function save(clear = false) {
     </fieldset>
     <fieldset :disabled="saving || testing">
       <legend>进度上传</legend>
-      <label>上传方式
-        <select v-model="form.auto" aria-label="上传方式">
-          <option :value="true">自动同步</option>
-          <option :value="false">手动同步</option>
-        </select>
-      </label>
-      <div v-if="form.auto" class="sync-fields">
-        <label>触发规则
-          <select v-model="form.rule" aria-label="触发规则">
-            <option value="both">定时及离开书籍时</option>
-            <option value="interval">定时上传</option>
-            <option value="leave">离开书籍时</option>
-          </select>
-        </label>
+      <fieldset class="sync-choice">
+        <legend>上传方式</legend>
+        <div class="sync-segments">
+          <label v-for="mode in modes" :key="mode.label">
+            <input v-model="form.auto" type="radio" name="upload-mode" :value="mode.value" />
+            <span>{{ mode.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+      <template v-if="form.auto">
+        <fieldset class="sync-choice">
+          <legend>触发规则</legend>
+          <div class="sync-segments">
+            <label v-for="rule in rules" :key="rule.value">
+              <input v-model="form.rule" type="radio" name="upload-rule" :value="rule.value" />
+              <span>{{ rule.label }}</span>
+            </label>
+          </div>
+        </fieldset>
         <label v-if="form.rule !== 'leave'">上传间隔（秒）
           <input v-model.number="form.intervalSeconds" type="number" required min="1" max="3600" step="1" />
         </label>
-      </div>
+      </template>
       <small>{{ !form.auto ? '翻页后，点「立即同步」上传待同步进度。' : form.rule === 'leave' ? '返回书房时上传待同步进度。' : '有进度变更时按间隔上传，连续翻页只上传最新位置。' }}</small>
     </fieldset>
     <div class="sync-actions">
