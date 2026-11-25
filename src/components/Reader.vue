@@ -31,6 +31,7 @@ import { readFile, updateBook, type Mark, type ShelfBook } from '../reader/libra
 const props = defineProps<{ record: ShelfBook }>()
 const emit = defineEmits<{ close: [] }>()
 const viewport = ref<HTMLElement>()
+const backButton = ref<HTMLButtonElement>()
 const dialog = ref<HTMLDialogElement>()
 const panel = ref('')
 const loading = ref(true)
@@ -544,6 +545,7 @@ onMounted(async () => {
     } catch {
       await rendition.display()
     }
+    if (!disposed) backButton.value?.focus({ preventScroll: true })
   } catch {
     error.value = '无法打开这本书，请返回书架后重试。'
   } finally {
@@ -568,7 +570,7 @@ onBeforeUnmount(() => {
     :style="{ '--paper': colors[0], '--print': colors[1] }"
   >
     <header class="reader-bar">
-      <button class="quiet" @click="emit('close')">
+      <button ref="backButton" class="quiet" @click="emit('close')">
         <ArrowLeft />
         书架
       </button>

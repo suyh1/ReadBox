@@ -10,6 +10,7 @@ adb shell am start -W -n "$app/io.github.suyh1.readbox.MainActivity"
 # Read GeckoView's accessibility tree to locate controls across emulator sizes.
 wait_control() {
   local label=$1
+  echo "等待界面元素 $label"
   local tree coords
   tree=$(mktemp)
   for attempt in {1..20}; do
@@ -37,6 +38,11 @@ PY
         adb shell input tap "$x" "$y"
       fi
       return 0
+    fi
+    # GeckoView exposes the focused chapter as a separate WebView. When looking
+    # for its sibling toolbar, move keyboard focus out of the chapter first.
+    if [[ $label == *书签 ]] && grep -q 'class="android.webkit.WebView"' "$tree"; then
+      adb shell input keyevent KEYCODE_TAB
     fi
     sleep 1
   done
