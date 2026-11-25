@@ -276,31 +276,31 @@ onUnmounted(() => {
             书架
             <small>{{ books.length }} 本</small>
           </h2>
-          <div class="search">
-            <Search />
-            <input v-model="query" type="search" placeholder="搜索书名或作者" aria-label="搜索书名或作者" />
+          <div class="collection-controls">
+            <div class="search">
+              <Search />
+              <input v-model="query" type="search" placeholder="搜索书名或作者" aria-label="搜索书名或作者" />
+            </div>
+            <label class="value-picker sort">
+              <select v-model="order" aria-label="书架排序">
+                <option>最近阅读</option>
+                <option>导入时间</option>
+                <option>书名</option>
+              </select>
+            </label>
           </div>
         </div>
-        <div class="shelf-tools">
-          <nav aria-label="书架筛选">
-            <button
-              v-for="f in filters"
-              :key="f.name"
-              :aria-pressed="scope === f.name"
-              @click="scope = f.name"
-            >
-              <component :is="f.icon" />
-              {{ f.name }}
-            </button>
-          </nav>
-          <label class="value-picker sort">
-            <select v-model="order" aria-label="书架排序">
-              <option>最近阅读</option>
-              <option>导入时间</option>
-              <option>书名</option>
-            </select>
-          </label>
-        </div>
+        <nav class="shelf-filters" aria-label="书架筛选">
+          <button
+            v-for="f in filters"
+            :key="f.name"
+            :aria-pressed="scope === f.name"
+            @click="scope = f.name"
+          >
+            <component :is="f.icon" />
+            {{ f.name }}
+          </button>
+        </nav>
         <div v-if="visible.length" class="book-grid">
           <article v-for="book in visible" :key="book.id" class="book-card">
             <button class="book-main" @click="openReader(book)">

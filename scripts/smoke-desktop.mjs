@@ -135,12 +135,26 @@ try {
     assert.ok(await page.evaluate(() => {
       const width = document.documentElement.clientWidth
       return document.documentElement.scrollWidth <= width &&
-        [...document.querySelectorAll('.topinner button, .shelf-tools button, .sort select')].every(control => {
+        [...document.querySelectorAll('.topinner button, .shelf-filters button, .sort select')].every(control => {
           const bounds = control.getBoundingClientRect()
           return bounds.width > 0 && bounds.left >= 0 && bounds.right <= width
         })
     }))
     const sort = page.getByRole('combobox', { name: '书架排序' })
+    for (const width of [320, 481, viewport.width]) {
+      await page.setViewportSize({ width, height: 900 })
+      const searchBox = await page.locator('.search').boundingBox()
+      const sortBox = await sort.boundingBox()
+      assert.equal(sortBox.y, searchBox.y)
+      assert.equal(sortBox.height, searchBox.height)
+      assert.ok(sortBox.x > searchBox.x + searchBox.width)
+    }
+    await sort.click()
+    const firstOption = await sort.locator('option').first().boundingBox()
+    const trigger = await sort.boundingBox()
+    assert.ok(firstOption.y >= trigger.y + trigger.height)
+    assert.ok(Math.abs((firstOption.x + firstOption.width / 2) - (trigger.x + trigger.width / 2)) < 1)
+    await page.keyboard.press('Escape')
     await sort.selectOption({ label: '书名' })
     assert.equal(await sort.inputValue(), '书名')
     await page.setViewportSize(viewport)
