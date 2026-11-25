@@ -4,10 +4,16 @@ abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
 apks=(out/*-android-"$abi".apk)
 [[ ${#apks[@]} -eq 1 && -f ${apks[0]} ]] || { echo "找不到与 $abi 匹配的唯一 APK" >&2; exit 1; }
 apk=${apks[0]}
-app=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+app=$("$aapt" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+manifest=$("$aapt" dump xmltree "$apk" AndroidManifest.xml)
+grep -Eq 'android:icon\([^)]*\)=@0x' <<< "$manifest"
+grep -Eq 'android:roundIcon\([^)]*\)=@0x' <<< "$manifest"
 adb shell svc wifi disable
 adb shell svc data disable
 adb install "$apk"
+# Dismiss the emulator's one-time immersive-mode tutorial before testing touch targets.
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell am start -W -n "$app/io.github.suyh1.readbox.MainActivity"
 
 # Read GeckoView's accessibility tree to locate controls across emulator sizes.
@@ -52,9 +58,30 @@ PY
   return 1
 }
 
+check_edge_to_edge() {
+  # The full-screen emulator's surface must cover the display in its current orientation.
+  # A padded parent leaves a native strip even when the HTML fills its viewport.
+  if (( $(adb shell getprop ro.build.version.sdk | tr -d '\r') >= 30 )); then
+    local screen
+    screen=$(adb exec-out screencap -p | python3 -c '
+import struct, sys
+w, h = struct.unpack(">II", sys.stdin.buffer.read()[16:24])
+print(f"0,0-{w},{h}")')
+    adb shell dumpsys activity top | python3 -c '
+import re, sys
+tree = sys.stdin.read()
+match = re.search(r"\bGeckoView\{[^\n]*? (\d+,\d+-\d+,\d+)[ }]", tree)
+if not match or match[1] != sys.argv[1]:
+    sys.exit(f"GeckoView bounds {match and match[1]}, expected {sys.argv[1]}")
+print("Edge-to-edge GeckoView:", match[1])' "$screen"
+  fi
+}
+
 wait_control '我的书房'
+check_edge_to_edge
 wait_control '开始阅读' tap
 wait_control '窗边的一页'
+check_edge_to_edge
 # Gecko can report the chapter as the entire accessibility root. Tap the actual
 # bookmark button in the bottom toolbar and verify its persisted result on the shelf.
 coords=$(adb exec-out cat /sdcard/readbox-window.xml | python3 -c '

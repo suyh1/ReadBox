@@ -1,0 +1,4 @@
+<resources>
+    <color name="library_surface">#1c1d23</color>
+    <style name="ReadBoxBaseTheme" parent="@android:style/Theme.Material.NoActionBar" />
+</resources>

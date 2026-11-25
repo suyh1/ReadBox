@@ -246,6 +246,7 @@ dialog button + button {
 .reader {
   height: 100vh;
   height: 100dvh;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
@@ -327,7 +328,7 @@ dialog button + button {
   padding: 0.4rem 0.65rem;
 }
 .reader-dialog {
-  margin: auto 20px auto auto;
+  margin: auto max(20px, env(safe-area-inset-right)) auto auto;
   max-height: min(86dvh, 760px);
 }
 .settings-dialog, .reader-dialog {
@@ -492,7 +493,7 @@ dialog button + button {
   pointer-events: none;
 }
 .focus-exit {
-  top: 0.45rem;
+  top: max(0.45rem, env(safe-area-inset-top));
   border-radius: 2rem;
   opacity: 0.85;
   font-size: 0.8rem;
@@ -533,6 +534,7 @@ dialog button + button {
     max-width: none;
     border-radius: 20px 20px 0 0;
     padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-inline: max(var(--panel-inset), env(safe-area-inset-left)) max(var(--panel-inset), env(safe-area-inset-right));
   }
 }
 @media (max-width: 600px) {
@@ -590,8 +592,8 @@ dialog button + button {
     top: 50%;
     transform: translateY(-50%);
   }
-  .page-info .icon:first-child { left: 6px; }
-  .page-info .icon:last-child { right: 6px; }
+  .page-info .icon:first-child { left: max(6px, env(safe-area-inset-left)); }
+  .page-info .icon:last-child { right: max(6px, env(safe-area-inset-right)); }
 }
 .time-stats {
   display: grid;
@@ -634,7 +636,7 @@ dialog button + button {
 @media (max-width: 600px) {
   .settings-dialog {
     width: 100%; max-width: none; margin: auto 0 0; border-radius: 20px 20px 0 0;
-    padding: 0 18px max(18px, env(safe-area-inset-bottom));
+    padding: 0 max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
   }
 }
 .preferences summary {

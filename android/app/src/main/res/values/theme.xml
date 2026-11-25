@@ -1,0 +1,10 @@
+<resources>
+    <color name="library_surface">#f3f3f5</color>
+    <color name="icon_ink">#343d50</color>
+    <style name="ReadBoxBaseTheme" parent="@android:style/Theme.Material.Light.NoActionBar" />
+    <style name="ReadBoxTheme" parent="ReadBoxBaseTheme">
+        <item name="android:windowBackground">@color/library_surface</item>
+        <item name="android:statusBarColor">@color/library_surface</item>
+        <item name="android:navigationBarColor">@color/library_surface</item>
+    </style>
+</resources>

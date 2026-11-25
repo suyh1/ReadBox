@@ -2,6 +2,8 @@ package io.github.suyh1.readbox
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -14,8 +16,10 @@ import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession.PromptDelegate.FilePrompt
 import org.mozilla.geckoview.GeckoSession.PromptDelegate.PromptResponse
 import android.os.Bundle
+import android.view.View
 import android.view.WindowInsets
-import android.widget.FrameLayout
+import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.widget.TextView
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
@@ -31,6 +35,39 @@ class MainActivity : Activity() {
     private var pendingFile: Pair<FilePrompt, GeckoResult<PromptResponse>>? = null
     private val importDir by lazy { File(cacheDir, "imports/" + UUID.randomUUID()) }
     private val backCallback by lazy { OnBackInvokedCallback { readerBack() } }
+
+    @Suppress("DEPRECATION")
+    private fun updateSystemBars() {
+        val light = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK != Configuration.UI_MODE_NIGHT_YES
+        if (Build.VERSION.SDK_INT >= 30) {
+            val controller = window.insetsController ?: return
+            val icons = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            controller.setSystemBarsAppearance(if (light) icons else 0, icons)
+            controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            val bars = WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
+            if (reading) controller.hide(bars) else controller.show(bars)
+        } else {
+            // On Android 8–10 Gecko reports cutouts, but not visible system bars,
+            // to CSS. Let the system fit the shelf and extend only the reader.
+            val icons = if (light) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
+            val immersive = View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            window.decorView.systemUiVisibility = if (reading) icons or immersive else icons
+            if (Build.VERSION.SDK_INT >= 28) {
+                val mode = if (reading) WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                if (window.attributes.layoutInDisplayCutoutMode != mode) {
+                    window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = mode }
+                }
+            }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) updateSystemBars()
+    }
 
     private fun readerBack() {
         if (panelOpen) session.goBack(false)
@@ -49,6 +86,7 @@ class MainActivity : Activity() {
                 panelOpen = inReader && url?.endsWith("#tools") == true
                 if (reading == inReader) return
                 reading = inReader
+                updateSystemBars()
                 if (Build.VERSION.SDK_INT >= 33) {
                     if (reading) onBackInvokedDispatcher.registerOnBackInvokedCallback(
                         OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback)
@@ -129,6 +167,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val runtime = GeckoRuntime.getDefault(applicationContext)
@@ -136,16 +175,21 @@ class MainActivity : Activity() {
             runtime.settings.setConsoleOutputEnabled(true)
         }
         view = GeckoView(this)
-        val container = FrameLayout(this)
-        container.addView(view)
-        if (android.os.Build.VERSION.SDK_INT >= 35) {
-            container.setOnApplyWindowInsetsListener { frame, insets ->
-                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                frame.setPadding(safe.left, safe.top, safe.right, safe.bottom)
-                insets
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             }
         }
-        setContentView(container)
+        // GeckoView supplies CSS safe-area-inset-* from the root window.
+        // Its surface must cover that window so insets are applied exactly once.
+        view.coverUntilFirstPaint(getColor(R.color.library_surface))
+        setContentView(view)
+        updateSystemBars()
         setupNavigation()
         setupFilePicker()
         session.open(runtime)
