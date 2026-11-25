@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url')
 
 const preferences = path.join(app.getPath('userData'), 'display.json')
 const page = path.join(__dirname, '../dist/index.html')
+if (process.platform === 'win32') app.setAppUserModelId('io.github.suyh1.readbox')
 let hardwareRequested = false
 try {
   hardwareRequested = JSON.parse(fs.readFileSync(preferences, 'utf8')).hardwareAcceleration === true
@@ -42,6 +43,7 @@ function checkCaller(event) {
 function openWindow() {
   window = new BrowserWindow({
     width: 960, height: 680, autoHideMenuBar: true,
+    icon: path.join(__dirname, 'icons/readbox.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       sandbox: true, contextIsolation: true, nodeIntegration: false,

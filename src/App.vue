@@ -5,7 +5,7 @@ import {
   LibraryBig,
   Heart,
   Clock3,
-  Plus,
+  FolderPlus,
   Search,
   SlidersHorizontal,
   ArrowRight,
@@ -16,6 +16,8 @@ import {
 import BookCover from './components/BookCover.vue'
 import DisplaySettings from './components/DisplaySettings.vue'
 import Reader from './components/Reader.vue'
+import MarqueeTitle from './components/MarqueeTitle.vue'
+import './library.css'
 import { listBooks, removeBook, updateBook, type ShelfBook } from './reader/library'
 import { importBook } from './reader/epub'
 import sample from './assets/书页之间.epub?inline&url'
@@ -26,6 +28,7 @@ const books = ref<ShelfBook[]>([])
 const active = ref<ShelfBook>()
 const reader = ref<InstanceType<typeof Reader>>()
 const picker = ref<HTMLInputElement>()
+const collection = ref<HTMLElement>()
 const busy = ref(false)
 const loaded = ref(false)
 const notice = ref('')
@@ -104,6 +107,9 @@ function choose(event: Event) {
   const files = Array.from(input.files || [])
   input.value = ''
   void ingest(files, files.length === 1)
+}
+function windowTop() {
+  window.scrollTo({ top: 0 })
 }
 async function startSample() {
   const bytes = Uint8Array.from(atob(sample.split(',')[1]), (c) => c.charCodeAt(0))
@@ -196,51 +202,62 @@ onUnmounted(() => {
   >
     <header class="topbar">
       <div class="topinner">
-        <div class="brand">
+        <button class="brand" aria-label="返回书房顶部" @click="windowTop">
           <BookOpen :size="25" />
           <strong>ReadBox</strong>
-        </div>
+        </button>
+        <nav aria-label="书房导航">
+          <button class="quiet" @click="collection?.scrollIntoView()">书架</button>
+        </nav>
         <button v-if="desktop" class="icon" aria-label="显示设置" @click="showDialog()"><Settings2 /></button>
       </div>
     </header>
     <main class="shelf">
       <div class="heading">
         <h1 id="ready">我的书房</h1>
-        <button class="primary" :disabled="busy" @click="picker?.click()">
-          <Plus />
-          {{ busy ? '正在导入…' : '导入 EPUB' }}
-        </button>
       </div>
       <input ref="picker" type="file" multiple accept=".epub,application/epub+zip" hidden @change="choose" />
       <p v-if="notice" role="status" class="notice">
         {{ notice }}
         <button class="icon" aria-label="关闭提示" @click="notice = ''"><X /></button>
       </p>
-      <section v-if="loaded" class="feature">
-        <div class="feature-copy">
-          <span class="kicker">
-            <BookOpen :size="15" />
-            {{ featured ? (featured.lastRead ? '继续阅读' : '最近加入') : '内置试读' }}
-          </span>
-          <h2>{{ featured?.title || '书页之间' }}</h2>
-          <p>{{ featured ? featured.author : '三篇关于阅读的短随笔' }}</p>
-          <small v-if="featured?.lastRead">
-            {{ featured.chapter }} · {{ featured.progress }}%<span v-if="featured.marks.length"> · {{ featured.marks.length }} 条书摘</span>
-          </small>
-          <button
-            :disabled="busy"
-            class="feature-action"
-            @click="featured ? openReader(featured) : startSample()"
-          >
-            {{ featured?.lastRead ? '接着读' : '开始阅读' }}
-            <ArrowRight :size="17" />
-          </button>
+      <div class="shelf-bento">
+        <section v-if="loaded" class="feature">
+          <div class="feature-copy">
+            <span class="kicker">
+              <BookOpen :size="15" />
+              {{ featured ? (featured.lastRead ? '继续阅读' : '最近加入') : '内置试读' }}
+            </span>
+            <h2><MarqueeTitle :text="featured?.title || '书页之间'" /></h2>
+            <p>{{ featured ? featured.author : '三篇关于阅读的短随笔' }}</p>
+            <small v-if="featured?.lastRead">
+              {{ featured.chapter }} · {{ featured.progress }}%<span v-if="featured.marks.length"> · {{ featured.marks.length }} 条书摘</span>
+            </small>
+            <button
+              :disabled="busy"
+              class="feature-action"
+              @click="featured ? openReader(featured) : startSample()"
+            >
+              {{ featured?.lastRead ? '接着读' : '开始阅读' }}
+              <ArrowRight :size="17" />
+            </button>
+          </div>
+          <div class="feature-art">
+            <BookCover :title="featured?.title || '书页之间'" :cover="featured?.cover" />
+          </div>
+        </section>
+        <div v-else class="feature-placeholder" role="status">
+          <span>{{ notice ? '无法读取本机书架' : '正在读取书架…' }}</span>
+          <i v-if="!notice" aria-hidden="true"></i>
+          <button v-else @click="refresh">重试</button>
         </div>
-        <div class="feature-art">
-          <BookCover :title="featured?.title || '书页之间'" :cover="featured?.cover" />
-        </div>
-      </section>
-      <section class="collection" aria-label="本地书架">
+        <button class="import-tile" :disabled="busy" @click="picker?.click()">
+          <span class="import-art" aria-hidden="true"><FolderPlus /></span>
+          <strong>{{ busy ? '正在导入…' : '导入 EPUB' }}</strong>
+          <small>选择文件或拖入书房</small>
+        </button>
+      </div>
+      <section ref="collection" class="collection" aria-label="本地书架">
         <div class="collection-head">
           <h2>
             书架
@@ -295,10 +312,10 @@ onUnmounted(() => {
             </div>
           </article>
         </div>
-        <div v-else class="empty">
+        <div v-else-if="loaded" class="empty">
           <LibraryBig />
-          <p>{{ !loaded ? '正在读取书架…' : books.length ? '没有符合条件的书籍' : '书架还是空的' }}</p>
-          <small v-if="loaded && !books.length">选择或拖入 EPUB，开始收藏你的书。</small>
+          <p>{{ books.length ? '没有符合条件的书籍' : '书架还是空的' }}</p>
+          <small v-if="!books.length">导入的图书会出现在这里。</small>
         </div>
       </section>
     </main>

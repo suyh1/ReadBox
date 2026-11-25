@@ -11,6 +11,7 @@ if (!['linux-x64', 'linux-arm64', 'win32-x64'].includes(platform + '-' + arch)) 
 }
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const out = path.join(root, 'out')
+const windowsIcon = path.join(root, 'desktop', 'icons', 'readbox.ico')
 await mkdir(out, { recursive: true })
 const scratch = await mkdtemp(path.join(out, 'package-'))
 try {
@@ -23,6 +24,7 @@ try {
   await writeFile(path.join(app, 'package.json'), JSON.stringify({ name, productName, version, main, description, license }))
   const [runtime] = await packager({
     dir: app, out: scratch, name: productName, executableName: 'readbox',
+    icon: platform === 'win32' ? windowsIcon : undefined,
     platform, arch, electronVersion: manifest.devDependencies.electron, asar: true, prune: false,
   })
   const packages = path.join(scratch, 'packages')
@@ -40,7 +42,12 @@ try {
       config: {
         appId: 'io.github.suyh1.readbox', productName, executableName: 'readbox',
         directories: { output: packages }, artifactName: filename,
-        nsis: { oneClick: false, perMachine: false, differentialPackage: false, useZip: true, installerLanguages: ['zh_CN', 'en_US'] },
+        win: { icon: windowsIcon },
+        nsis: {
+          oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true,
+          uninstallerIcon: windowsIcon, differentialPackage: false, useZip: true,
+          installerLanguages: ['zh_CN', 'en_US'],
+        },
       },
     })
   }

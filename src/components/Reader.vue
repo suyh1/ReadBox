@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import {
   ArrowLeft,
+  BookOpen,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,7 @@ import {
 } from '@lucide/vue'
 import type { Book, Contents, Location, Rendition } from 'epubjs'
 import type Section from 'epubjs/types/section'
+import MarqueeTitle from './MarqueeTitle.vue'
 import { ExtensionChapterView } from '../reader/extension-view'
 import {
   closeBook,
@@ -45,6 +47,19 @@ const percent = ref(0)
 const beforeJump = ref('')
 let foundCfi = ''
 const toc = ref<ReturnType<typeof contentsOf>>([])
+const folded = ref(new Set<number>())
+const visibleToc = computed(() => {
+  let hiddenBelow = Infinity
+  return toc.value.flatMap((entry, index) => {
+    if (entry.depth > hiddenBelow) return []
+    hiddenBelow = folded.value.has(index) ? entry.depth : Infinity
+    return [{ ...entry, index }]
+  })
+})
+function toggleVolume(index: number) {
+  if (folded.value.has(index)) folded.value.delete(index)
+  else folded.value.add(index)
+}
 const marks = ref<Mark[]>(props.record.marks.map((m) => ({ ...m })))
 const selection = ref<Pick<Mark, 'cfi' | 'quote' | 'chapter'>>()
 const note = ref('')
@@ -100,9 +115,9 @@ const visiblePages = computed(() => {
   return twoPage.value && loc.start.index === loc.end.index && last > first ? first + '–' + last : first
 })
 const palettes: Record<string, string[]> = {
-  纸白: ['#fcfbf7', '#242922'],
+  纸白: ['#fcfbf8', '#292a2e'],
   暖纸: ['#eee2cb', '#43392b'],
-  夜读: ['#212822', '#e2e7dc'],
+  夜读: ['#22242a', '#e5e4df'],
 }
 const appearance = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(appearance.matches)
@@ -602,7 +617,7 @@ onBeforeUnmount(() => {
         书架
       </button>
       <button v-if="beforeJump" class="quiet return-position" @click="undoJump">返回跳转前</button>
-      <strong>{{ record.title }}</strong>
+      <MarqueeTitle :text="record.title" />
       <button class="icon" title="专注阅读" aria-label="专注阅读" @click="focus = true"><Maximize /></button>
     </header>
     <div class="reading-area" :class="{ spread: spreadVisible }" :style="{ maxWidth: maxReadingWidth + 'px' }">
@@ -663,16 +678,20 @@ onBeforeUnmount(() => {
         <h2>{{ panel }}</h2>
         <button class="icon" aria-label="关闭面板" @click="dialog?.close()"><X /></button>
       </header>
-      <div v-if="panel === '目录'" class="entries">
-        <button
-          v-for="(t, i) in toc"
-          :key="i"
-          :style="{ paddingInlineStart: 1 + 0.9 * t.depth + 'rem' }"
-          :aria-current="location?.start.href === t.href.split('#')[0] ? 'location' : undefined"
-          @click="jump(t.href)"
-        >
-          {{ t.label }}
-        </button>
+      <div v-if="panel === '目录'" class="toc-list">
+        <div v-for="t in visibleToc" :key="t.index" class="toc-row"
+          :style="{ paddingInlineStart: Math.min(t.depth, 6) * 0.8 + 'rem' }">
+          <button v-if="t.hasChildren" class="toc-group" :aria-expanded="!folded.has(t.index)"
+            @click="toggleVolume(t.index)">
+            <ChevronRight />{{ t.label }}
+          </button>
+          <button v-if="t.href" :class="t.hasChildren ? 'icon toc-jump' : 'toc-chapter'"
+            :aria-label="t.hasChildren ? '跳转到' + t.label : undefined"
+            :aria-current="location?.start.href === t.href.split('#')[0] ? 'location' : undefined"
+            @click="jump(t.href)">
+            <BookOpen v-if="t.hasChildren" /><template v-else>{{ t.label }}</template>
+          </button>
+        </div>
       </div>
       <template v-if="panel === '书内搜索'">
         <form class="search-form" @submit.prevent="search">

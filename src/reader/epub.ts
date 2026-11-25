@@ -92,14 +92,22 @@ export function spineOf(book: Book) {
 }
 
 export function contentsOf(book: Book, sections: Section[]) {
-  const entries: { label: string; href: string; depth: number }[] = []
+  const entries: { label: string; href: string; depth: number; hasChildren: boolean }[] = []
   const navPath = book.packaging.navPath || book.packaging.ncxPath || ''
   function visit(items: NavItem[], depth: number) {
     for (const item of items) {
-      const target = resolveLink(navPath, item.href)
-      const href = target && book.spine.get(target) ? target : item.href
-      if (href && book.spine.get(href)) entries.push({ label: item.label.trim(), href, depth })
+      let href = ''
+      if (item.href) {
+        const resolved = resolveLink(navPath, item.href)
+        if (resolved && book.spine.get(resolved)) href = resolved
+        else if (book.spine.get(item.href)) href = item.href
+      }
+      const index = entries.length
+      const entry = { label: item.label.trim(), href, depth, hasChildren: false }
+      entries.push(entry)
       visit(item.subitems || [], depth + 1)
+      entry.hasChildren = entries.length > index + 1
+      if (!href && !entry.hasChildren) entries.pop()
     }
   }
   visit(book.navigation.toc, 0)
@@ -109,6 +117,7 @@ export function contentsOf(book: Book, sections: Section[]) {
         label: '第 ' + (i + 1) + ' 章',
         href: section.href,
         depth: 0,
+        hasChildren: false,
       }))
 }
 

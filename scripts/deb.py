@@ -62,9 +62,14 @@ Type=Application
 Name=ReadBox
 Comment=EPUB 阅读器
 Exec=/opt/readbox/readbox
+Icon=io.github.suyh1.readbox
 Terminal=false
 Categories=Office;Viewer;
 """.strip())
+    icon_dir = root / "usr/share/icons/hicolor/scalable/apps"
+    icon_dir.mkdir(parents=True)
+    shutil.copyfile(Path(__file__).resolve().parents[1] / "desktop/icons/readbox.svg",
+                    icon_dir / "io.github.suyh1.readbox.svg")
     (root / "usr/bin").mkdir(parents=True)
     (root / "usr/bin/readbox").symlink_to("/opt/readbox/readbox")
     depends = (f"libc6 (>= {minimum}), libgtk-3-0 (>= 3.24), libnss3, libnspr4, "

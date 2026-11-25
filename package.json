@@ -1,7 +1,7 @@
 {
   "name": "readbox",
   "productName": "ReadBox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "离线 EPUB 阅读器",
   "license": "MIT",
   "private": true,

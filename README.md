@@ -13,7 +13,7 @@ ReadBox 是面向中文 EPUB 的离线阅读器。打开「我的书房」可以
 
 | 目标 | 宿主和产物 | 首次验收 |
 | --- | --- | --- |
-| Windows x64 | Electron 45.0.0、NSIS 离线 EXE | 安装、普通用户冷启动、卸载 |
+| Windows x64 | Electron 45.0.0、可选择安装目录的 NSIS 离线 EXE | 安装、普通用户冷启动、卸载 |
 | Linux amd64 | 同版 Electron、gzip DEB | 桌面安装、菜单启动、显示设置持久化 |
 | Linux arm64 | 同版 Electron、gzip DEB；参考银河麒麟桌面 V10 SP1 | 干净目标系统断网安装、X11 或 XWayland 启动、滚动流畅度 |
 | Android | Kotlin、GeckoView、单个签名 APK；最低 Android 8.0 | 小米真机断网冷启动、系统栏、返回手势与同签名覆盖升级 |
@@ -22,7 +22,7 @@ ReadBox 是面向中文 EPUB 的离线阅读器。打开「我的书房」可以
 
 ## 界面与绘制
 
-四端使用同一份 Vue 3、TypeScript 和 CSS 资源。设计依据 Apple 当前的 Liquid Glass 指南。玻璃材质用于导航、工具栏和浮层，正文使用稳定底色。提供深浅色、清晰的键盘焦点、降低透明度与动效的替代效果。桌面采用侧边工具面板和键盘导航，手机使用底部工具栏与弹出面板。[Apple 材质指南](https://developer.apple.com/design/human-interface-guidelines/materials)
+四端共用 Vue 3、TypeScript 和 CSS 界面。书房默认使用雾灰、纸白和墨蓝，窄屏下续读和导入卡片上下排列。阅读工具栏悬浮在正文下方。打开目录后，点击卷名可折叠或展开章节；带正文链接的卷可用右侧书本按钮跳转。界面支持深浅色、键盘操作和系统的减少动效设置。
 
 桌面默认软件绘制，可在「显示设置」启用硬件加速，下次启动生效。设置页分别显示保存的选择与本次 GPU 合成状态。黑屏时可用 `readbox --disable-gpu` 启动（Windows 在安装目录运行 `readbox.exe --disable-gpu`），再关闭硬件加速。麒麟的软件绘制模式以静态半透明材质为基线。Android 采用 GeckoView 自身的渲染策略。
 
