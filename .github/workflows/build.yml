@@ -148,6 +148,12 @@ jobs:
           arch: x86_64
           script: bash scripts/smoke-android.sh
       - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-reader-diagnostics
+          path: out/android-reader-failure.png
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
         with:
           name: package-android
           path: out/*.apk

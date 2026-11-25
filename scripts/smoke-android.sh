@@ -41,6 +41,7 @@ PY
     fi
     sleep 1
   done
+  adb exec-out screencap -p > out/android-reader-failure.png
   cat "$tree" >&2
   rm -f "$tree"
   adb logcat -d -s ReadBox AndroidRuntime GeckoConsole >&2
@@ -70,6 +71,7 @@ else:
     print(x1 + (x2-x1)*9//10, bottom + (safe_bottom-bottom)*4//5)
 ')
 read -r x y <<< "$coords"
+echo "点击书签工具 ($x, $y)"
 adb shell input tap "$x" "$y"
 adb shell input keyevent KEYCODE_BACK
 wait_control '1 条书摘'

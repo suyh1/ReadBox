@@ -28,7 +28,7 @@ class MainActivity : Activity() {
     private var canGoBack = false
     private var pendingFile: Pair<FilePrompt, GeckoResult<PromptResponse>>? = null
     private val importDir by lazy { File(cacheDir, "imports/" + UUID.randomUUID()) }
-    private val backCallback by lazy { OnBackInvokedCallback { session.goBack() } }
+    private val backCallback by lazy { OnBackInvokedCallback { session.goBack(false) } }
 
     private fun setupNavigation() {
         session.navigationDelegate = object : GeckoSession.NavigationDelegate {
@@ -46,7 +46,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Used on Android 8–12")
     override fun onBackPressed() {
-        if (canGoBack) session.goBack() else super.onBackPressed()
+        if (canGoBack) session.goBack(false) else super.onBackPressed()
     }
 
     private fun setupFilePicker() {
