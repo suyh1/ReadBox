@@ -25,18 +25,32 @@ class MainActivity : Activity() {
     private lateinit var view: GeckoView
     private val session = GeckoSession()
 
-    private var canGoBack = false
+    private var reading = false
+    private var panelOpen = false
+    private var libraryUrl: String? = null
     private var pendingFile: Pair<FilePrompt, GeckoResult<PromptResponse>>? = null
     private val importDir by lazy { File(cacheDir, "imports/" + UUID.randomUUID()) }
-    private val backCallback by lazy { OnBackInvokedCallback { session.goBack(false) } }
+    private val backCallback by lazy { OnBackInvokedCallback { readerBack() } }
+
+    private fun readerBack() {
+        if (panelOpen) session.goBack(false)
+        else libraryUrl?.let { session.loadUri(it) }
+    }
 
     private fun setupNavigation() {
         session.navigationDelegate = object : GeckoSession.NavigationDelegate {
-            override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
-                if (this@MainActivity.canGoBack == canGoBack) return
-                this@MainActivity.canGoBack = canGoBack
+            override fun onLocationChange(
+                session: GeckoSession,
+                url: String?,
+                perms: List<GeckoSession.PermissionDelegate.ContentPermission>,
+                hasUserGesture: Boolean
+            ) {
+                val inReader = libraryUrl?.let { url?.startsWith("$it?book=") } == true
+                panelOpen = inReader && url?.endsWith("#tools") == true
+                if (reading == inReader) return
+                reading = inReader
                 if (Build.VERSION.SDK_INT >= 33) {
-                    if (canGoBack) onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                    if (reading) onBackInvokedDispatcher.registerOnBackInvokedCallback(
                         OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback)
                     else onBackInvokedDispatcher.unregisterOnBackInvokedCallback(backCallback)
                 }
@@ -46,7 +60,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Used on Android 8–12")
     override fun onBackPressed() {
-        if (canGoBack) session.goBack(false) else super.onBackPressed()
+        if (reading) readerBack() else super.onBackPressed()
     }
 
     private fun setupFilePicker() {
@@ -138,7 +152,11 @@ class MainActivity : Activity() {
         view.setSession(session)
         runtime.webExtensionController.ensureBuiltIn("resource://android/assets/ui/", "ui@readbox.local")
             .accept({ extension ->
-                if (!isDestroyed && extension != null) session.loadUri(extension.metaData.baseUrl + "index.html")
+                if (!isDestroyed && extension != null) {
+                    val url = extension.metaData.baseUrl + "index.html"
+                    libraryUrl = url
+                    session.loadUri(url)
+                }
             }, { error ->
                 android.util.Log.e("ReadBox", "本地界面加载失败", error)
                 if (!isDestroyed) setContentView(TextView(this).apply { text = "本地界面加载失败" })

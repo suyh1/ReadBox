@@ -120,7 +120,12 @@ function labelFor(index: number) {
 function showPanel(name: string) {
   focus.value = false
   panel.value = name
-  if (!dialog.value?.open) dialog.value?.showModal()
+  if (!dialog.value?.open) {
+    if (window.location.protocol === 'moz-extension:' && window.location.hash !== '#tools') {
+      history.pushState({ tools: true }, '', '#tools')
+    }
+    dialog.value?.showModal()
+  }
   if (name === '书内搜索' || name === '写笔记') {
     void nextTick(() => dialog.value?.querySelector<HTMLElement>('input[type=search], textarea')?.focus())
   }
@@ -144,6 +149,7 @@ defineExpose({ dismissTool })
 function afterDialog() {
   if (panel.value === '脚注') (lastAnchor as HTMLElement | null)?.focus?.({ preventScroll: true })
   panel.value = ''
+  if (window.location.hash === '#tools') history.back()
 }
 function stopSpeaking() {
   if (speak.value) synth?.cancel()

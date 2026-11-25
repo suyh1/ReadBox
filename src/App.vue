@@ -121,9 +121,14 @@ function openReader(book: ShelfBook) {
   history.pushState({ book: book.id }, '')
 }
 function backToShelf() {
-  history.back()
+  if (extensionHost) window.location.replace(window.location.pathname)
+  else history.back()
 }
 function handleBack(event: PopStateEvent) {
+  if (extensionHost) {
+    reader.value?.dismissTool()
+    return
+  }
   if (event.state?.book && !active.value) {
     active.value = books.value.find((b) => b.id === event.state.book)
     return
