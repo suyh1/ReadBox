@@ -340,8 +340,8 @@ function turn(next: boolean) {
     error.value = '翻页失败，请从目录重新定位。'
   })
 }
-function turnAtFocusEdge(clientX: number) {
-  if (!desktopPages || !focus.value || !viewport.value) return false
+function turnAtDesktopEdge(clientX: number) {
+  if (!desktopPages || !viewport.value) return false
   const { left, right, width } = viewport.value.getBoundingClientRect()
   const edgeWidth = width * 0.22
   const next = clientX >= right - edgeWidth
@@ -444,11 +444,11 @@ function bindContent(content: Contents) {
       }
       if (doc.getSelection()?.toString() || Date.now() - swipeAt < 400) return
       selection.value = undefined
-      if (desktopPages && focus.value) {
+      if (desktopPages) {
         if ((event.target as Element).closest?.('button, input, select, textarea, [contenteditable="true"]')) return
         // A paginated chapter's iframe can extend several pages beyond the visible viewport.
         const frame = content.window.frameElement
-        if (frame && turnAtFocusEdge(frame.getBoundingClientRect().left + event.clientX)) return
+        if (frame && turnAtDesktopEdge(frame.getBoundingClientRect().left + event.clientX)) return
       } else if (window.matchMedia('(pointer: coarse)').matches && flow.value === 'paginated') {
         const x = event.clientX / content.window.innerWidth
         if (x < 0.22 || x > 0.78) {
@@ -666,7 +666,7 @@ onBeforeUnmount(() => {
 <template>
   <main
     class="reader"
-    @click.self="turnAtFocusEdge($event.clientX)"
+    @click.self="turnAtDesktopEdge($event.clientX)"
     :class="{ focused: focus, night: theme === '夜读' }"
     :style="{ '--paper': colors[0], '--print': colors[1] }"
   >
@@ -684,7 +684,7 @@ onBeforeUnmount(() => {
       class="reading-area"
       :class="{ spread: spreadVisible }"
       :style="{ maxWidth: maxReadingWidth + 'px' }"
-      @click="turnAtFocusEdge($event.clientX)"
+      @click="turnAtDesktopEdge($event.clientX)"
     >
       <div ref="viewport" class="viewport"></div>
       <p v-if="loading" role="status" class="reader-message">正在排版…</p>
@@ -710,6 +710,7 @@ onBeforeUnmount(() => {
     <footer class="reader-footer">
       <div class="page-info">
         <button
+          v-if="!desktopPages"
           class="icon"
           title="上一页"
           aria-label="上一页"
@@ -724,7 +725,7 @@ onBeforeUnmount(() => {
             {{ visiblePages }} / {{ location.start.displayed.total }} · {{ percent }}%
           </small>
         </span>
-        <button class="icon" title="下一页" aria-label="下一页" :disabled="!location || location.atEnd" @click="turn(true)">
+        <button v-if="!desktopPages" class="icon" title="下一页" aria-label="下一页" :disabled="!location || location.atEnd" @click="turn(true)">
           <ChevronRight />
         </button>
       </div>

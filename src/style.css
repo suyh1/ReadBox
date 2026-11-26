@@ -512,6 +512,9 @@ dialog button + button {
   .page-info span {
     max-width: 70vw;
   }
+  .page-info span:only-child {
+    margin-inline: auto;
+  }
   .reader-tools {
     width: 100%;
     justify-content: space-around;
