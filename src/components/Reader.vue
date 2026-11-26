@@ -340,6 +340,15 @@ function turn(next: boolean) {
     error.value = '翻页失败，请从目录重新定位。'
   })
 }
+function turnAtFocusEdge(clientX: number) {
+  if (!desktopPages || !focus.value || !viewport.value) return false
+  const { left, right, width } = viewport.value.getBoundingClientRect()
+  const edgeWidth = width * 0.22
+  const next = clientX >= right - edgeWidth
+  if (!next && clientX > left + edgeWidth) return false
+  if (location.value && !(next ? location.value.atEnd : location.value.atStart)) turn(next)
+  return true
+}
 function keys(event: KeyboardEvent) {
   if (
     event.defaultPrevented ||
@@ -435,7 +444,12 @@ function bindContent(content: Contents) {
       }
       if (doc.getSelection()?.toString() || Date.now() - swipeAt < 400) return
       selection.value = undefined
-      if (window.matchMedia('(pointer: coarse)').matches && flow.value === 'paginated') {
+      if (desktopPages && focus.value) {
+        if ((event.target as Element).closest?.('button, input, select, textarea, [contenteditable="true"]')) return
+        // A paginated chapter's iframe can extend several pages beyond the visible viewport.
+        const frame = content.window.frameElement
+        if (frame && turnAtFocusEdge(frame.getBoundingClientRect().left + event.clientX)) return
+      } else if (window.matchMedia('(pointer: coarse)').matches && flow.value === 'paginated') {
         const x = event.clientX / content.window.innerWidth
         if (x < 0.22 || x > 0.78) {
           turn(x > 0.78)
@@ -652,6 +666,7 @@ onBeforeUnmount(() => {
 <template>
   <main
     class="reader"
+    @click.self="turnAtFocusEdge($event.clientX)"
     :class="{ focused: focus, night: theme === '夜读' }"
     :style="{ '--paper': colors[0], '--print': colors[1] }"
   >
@@ -665,7 +680,12 @@ onBeforeUnmount(() => {
       <button class="icon" title="阅读时长" aria-label="阅读时长" @click="showPanel('阅读时长')"><Clock3 /></button>
       <button class="icon" title="专注阅读" aria-label="专注阅读" @click="focus = true"><Maximize /></button>
     </header>
-    <div class="reading-area" :class="{ spread: spreadVisible }" :style="{ maxWidth: maxReadingWidth + 'px' }">
+    <div
+      class="reading-area"
+      :class="{ spread: spreadVisible }"
+      :style="{ maxWidth: maxReadingWidth + 'px' }"
+      @click="turnAtFocusEdge($event.clientX)"
+    >
       <div ref="viewport" class="viewport"></div>
       <p v-if="loading" role="status" class="reader-message">正在排版…</p>
     </div>
