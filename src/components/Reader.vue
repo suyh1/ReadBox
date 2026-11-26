@@ -603,21 +603,33 @@ onMounted(async () => {
       }
     })
     marks.value.filter((m) => m.kind === 'highlight').forEach(highlight)
-    let target: string | undefined
+    const localCfi = props.record.cfi
+    let syncedCfi: string | undefined
     try {
-      const remote = await openingPosition(props.record.id, props.record.pendingPosition)
-      target = remote?.cfi
-      positionTime = remote?.updated || 0
+      const position = await openingPosition(props.record.id, props.record.pendingPosition)
+      syncedCfi = position?.cfi
+      positionTime = position?.updated || 0
     } catch (cause) {
-      status.value = syncError(cause) + ' 已从书首打开。'
+      status.value = syncError(cause)
+    }
+    // Try saved positions before letting epub.js display the first page.
+    const targets = new Set([syncedCfi, localCfi].filter((cfi): cfi is string => !!cfi))
+    let restored = false
+    for (const cfi of targets) {
+      if (disposed) return
+      try {
+        if (book.spine.get(cfi)) {
+          await rendition.display(cfi)
+          restored = true
+          break
+        }
+      } catch {
+        // A stale CFI may fail to parse or display.
+      }
+      status.value = cfi === localCfi ? '本地阅读位置无法定位。' : '云端阅读位置无法定位。'
     }
     if (disposed) return
-    try {
-      await rendition.display(target)
-    } catch {
-      status.value = '云端位置无法定位，已从书首打开。'
-      await rendition.display()
-    }
+    if (!restored) await rendition.display()
     if (!disposed) backButton.value?.focus({ preventScroll: true })
   } catch {
     error.value = '无法打开这本书，请返回书架后重试。'

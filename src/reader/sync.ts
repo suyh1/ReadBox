@@ -103,7 +103,7 @@ export async function openingPosition(id: string, pending?: Position) {
   const config = davConfig.value
   if (!config) return null
   const remote = (await download(config, id)).position
-  if (config.auto && pending && (!remote || pending.updated > remote.updated)) return pending
+  if (config.auto && remote && pending && pending.updated > remote.updated) return pending
   return remote
 }
 
